@@ -1,0 +1,33 @@
+{
+    "name": "arr-mcp",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "main": "dist/index.js",
+    "engines": {
+        "node": "24.13.0"
+    },
+    "scripts": {
+        "build": "tsc",
+        "typecheck": "tsc --noEmit",
+        "dev": "node --env-file=.env --import tsx/esm src/index.ts",
+        "start": "node dist/index.js",
+        "lint": "eslint \"src/**/*.ts\" --fix",
+        "lint:check": "eslint \"src/**/*.ts\""
+    },
+    "dependencies": {
+        "@modelcontextprotocol/sdk": "1.10.2",
+        "express": "^5.2.1"
+    },
+    "devDependencies": {
+        "@eslint/js": "9.18.0",
+        "@stylistic/eslint-plugin": "4.2.0",
+        "@types/express": "^5",
+        "@types/node": "22.10.7",
+        "eslint": "9.27.0",
+        "globals": "16.0.0",
+        "tsx": "4.21.0",
+        "typescript": "5.7.3",
+        "typescript-eslint": "8.20.0"
+    }
+}
