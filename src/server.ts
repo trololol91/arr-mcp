@@ -11,7 +11,7 @@ import {serrGet} from './services/seerr.js';
 import {sonarrTools} from './tools/sonarr.js';
 import {radarrTools} from './tools/radarr.js';
 import {qbtTools} from './tools/qbittorrent.js';
-import {serrTools, trimDiscoverPage} from './tools/seerr.js';
+import {serrTools, trimDiscoverPage, applyBlocklistFilter} from './tools/seerr.js';
 import {anilistTools, fetchAnilistUI} from './tools/anilist.js';
 import type {AnilistMedia} from './tools/anilist.js';
 import type {ToolInputSchema, ToolModule} from './tools/types.js';
@@ -170,7 +170,8 @@ export const createMcpServer = (): McpServer => {
             const raw = await serrGet(`${path}?page=${page ?? 1}`) as {
                 page: number; totalPages: number; results: Record<string, unknown>[];
             };
-            return {content: [{type: 'text', text: JSON.stringify(trimDiscoverPage(raw, type))}]};
+            const filtered = await applyBlocklistFilter(raw.results);
+            return {content: [{type: 'text', text: JSON.stringify(trimDiscoverPage({...raw, results: filtered}, type))}]};
         });
     }
 

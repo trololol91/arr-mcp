@@ -107,7 +107,10 @@ export const serrTools: ToolModule[] = [
                 page: {type: 'number', description: 'Page number (default 1)'}
             }
         },
-        handle: async (args) => serrGet(`/discover/trending?page=${(args['page'] as number | undefined) ?? 1}`)
+        handle: async (args) => {
+            const raw = await serrGet(`/discover/trending?page=${(args['page'] as number | undefined) ?? 1}`) as DiscoverRaw;
+            return {...raw, results: await applyBlocklistFilter(raw.results)};
+        }
     },
     {
         name: 'seerr_popular_movies',
@@ -118,7 +121,10 @@ export const serrTools: ToolModule[] = [
                 page: {type: 'number', description: 'Page number (default 1)'}
             }
         },
-        handle: async (args) => serrGet(`/discover/movies?page=${(args['page'] as number | undefined) ?? 1}`)
+        handle: async (args) => {
+            const raw = await serrGet(`/discover/movies?page=${(args['page'] as number | undefined) ?? 1}`) as DiscoverRaw;
+            return {...raw, results: await applyBlocklistFilter(raw.results)};
+        }
     },
     {
         name: 'seerr_upcoming_movies',
@@ -129,7 +135,10 @@ export const serrTools: ToolModule[] = [
                 page: {type: 'number', description: 'Page number (default 1)'}
             }
         },
-        handle: async (args) => serrGet(`/discover/movies/upcoming?page=${(args['page'] as number | undefined) ?? 1}`)
+        handle: async (args) => {
+            const raw = await serrGet(`/discover/movies/upcoming?page=${(args['page'] as number | undefined) ?? 1}`) as DiscoverRaw;
+            return {...raw, results: await applyBlocklistFilter(raw.results)};
+        }
     },
     {
         name: 'seerr_popular_tv',
@@ -140,7 +149,10 @@ export const serrTools: ToolModule[] = [
                 page: {type: 'number', description: 'Page number (default 1)'}
             }
         },
-        handle: async (args) => serrGet(`/discover/tv?page=${(args['page'] as number | undefined) ?? 1}`)
+        handle: async (args) => {
+            const raw = await serrGet(`/discover/tv?page=${(args['page'] as number | undefined) ?? 1}`) as DiscoverRaw;
+            return {...raw, results: await applyBlocklistFilter(raw.results)};
+        }
     },
     {
         name: 'seerr_movie_recommendations',
@@ -254,18 +266,37 @@ export const serrTools: ToolModule[] = [
             };
             const path = paths[args['type'] as string];
             if (!path) throw new Error(`Unknown discover type: ${args['type'] as string}`);
-            const raw = await serrGet(`${path}?page=${args['page'] as number}`) as {
-                page: number; totalPages: number;
-                results: Record<string, unknown>[];
-            };
-            return trimDiscoverPage(raw, args['type'] as string);
+            const raw = await serrGet(`${path}?page=${args['page'] as number}`) as DiscoverRaw;
+            const filtered = await applyBlocklistFilter(raw.results);
+            return trimDiscoverPage({...raw, results: filtered}, args['type'] as string);
         }
     },
 ];
 
 const TMDB_IMG = 'https://image.tmdb.org/t/p/w342';
 
-export const trimDiscoverPage = (raw: {page: number; totalPages: number; results: Record<string, unknown>[]}, type: string) => ({
+type DiscoverRaw = {page: number; totalPages: number; results: Record<string, unknown>[]};
+
+export const applyBlocklistFilter = async (results: Record<string, unknown>[]): Promise<Record<string, unknown>[]> => {
+    const [settings, bl] = await Promise.all([
+        serrGet('/settings/main') as Promise<{blocklistLanguage?: string; blocklistRegion?: string}>,
+        serrGet('/blocklist?take=1000') as Promise<{results: Array<{tmdbId: number}>}>,
+    ]);
+    const blockedLangs = new Set((settings.blocklistLanguage ?? '').split(',').map((l) => l.trim()).filter(Boolean));
+    const blockedRegions = new Set((settings.blocklistRegion ?? '').split(',').map((r) => r.trim()).filter(Boolean));
+    const blockedIds = new Set(bl.results.map((r) => r.tmdbId));
+    return results.filter((r) => {
+        if (blockedIds.has(r['id'] as number)) return false;
+        if (blockedLangs.size && blockedLangs.has(r['originalLanguage'] as string)) return false;
+        if (blockedRegions.size) {
+            const countries = r['originCountry'] as string[] | undefined;
+            if (countries?.some((c) => blockedRegions.has(c))) return false;
+        }
+        return true;
+    });
+};
+
+export const trimDiscoverPage = (raw: DiscoverRaw, type: string) => ({
     type,
     page: raw.page,
     totalPages: raw.totalPages,
