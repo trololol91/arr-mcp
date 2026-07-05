@@ -47,10 +47,11 @@ function escHtml(s: string): string {
 }
 
 function rtScoreHtml(score: number | undefined, rating: string | undefined): string {
-    if (score === undefined) return '';
-    const cls = rating === 'Certified Fresh' ? 'rt-certified' : score >= 60 ? 'rt-fresh' : 'rt-rotten';
-    const icon = rating === 'Certified Fresh' ? '🍅✓' : score >= 60 ? '🍅' : '🤢';
-    return `<span class="${cls}">${icon} ${score}%</span>`;
+    if (score === undefined && !rating) return '';
+    const cls = rating === 'Certified Fresh' ? 'rt-certified' : (score !== undefined ? score >= 60 : rating === 'Fresh') ? 'rt-fresh' : 'rt-rotten';
+    const icon = rating === 'Certified Fresh' ? '🍅✓' : rating === 'Fresh' || (score !== undefined && score >= 60) ? '🍅' : '🤢';
+    const label = score !== undefined ? `${score}%` : rating ?? '';
+    return `<span class="${cls}">${icon} ${label}</span>`;
 }
 
 function popcornScoreHtml(score: number | undefined, rating: string | undefined): string {
@@ -60,7 +61,7 @@ function popcornScoreHtml(score: number | undefined, rating: string | undefined)
 }
 
 function renderRatings(r: Ratings): string {
-    const rt = r.rt ?? (r.criticsScore !== undefined ? r : undefined);
+    const rt = r.rt ?? (r.criticsScore !== undefined || r.audienceScore !== undefined || r.criticsRating ? r : undefined);
     const imdb = r.imdb;
     const parts: string[] = [];
     if (rt) {
