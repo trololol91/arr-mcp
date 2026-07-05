@@ -12,7 +12,7 @@ RUN npm ci --ignore-scripts
 
 COPY . .
 
-RUN npm run build
+RUN npm run build:ui && npm run build
 
 # ---- Stage 2: Production -----------------------------------------------------
 FROM node:24.13.0-alpine AS production

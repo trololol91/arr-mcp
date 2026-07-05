@@ -7,7 +7,7 @@ MCP server for managing Sonarr, Radarr, qBittorrent, and Seerr via Claude.ai on 
 ```
 src/
   index.ts              Entry point — validates env, starts HTTP server
-  server.ts             MCP server, tool registry (ALL_TOOLS), request handlers
+  server.ts             MCP server (McpServer), tool registry, UI tool registration
   http-transport.ts     Express server, OAuth 2.1 (mcpAuthRouter), /mcp sessions
   oauth-provider.ts     OAuthServerProvider — in-memory client/code stores, login form
   services/
@@ -21,21 +21,32 @@ src/
     radarr.ts           16 Radarr tools
     qbittorrent.ts      4 qBittorrent tools
     seerr.ts            12 Seerr tools
+ui/
+  sonarr-releases/      Release browser iframe for Sonarr interactive search
+    index.html          Vite entry
+    main.ts             App class, release table, Grab logic
+  radarr-releases/      Release browser iframe for Radarr interactive search
+    index.html
+    main.ts
+scripts/
+  build-ui.ts           Vite build script (runs two single-file builds)
 ```
 
 ## Adding a new tool
 
 1. Add an entry to the relevant `src/tools/*.ts` array following the `ToolModule` interface in `src/tools/types.ts`.
-2. No registration needed — `ALL_TOOLS` in `src/server.ts` spreads all tool arrays automatically.
-3. Run `npm run typecheck` to verify, then rebuild and redeploy.
+2. No registration needed — `ALL_TOOLS` in `src/server.ts` is iterated automatically via `server.registerTool()`.
+3. Update `TOOL_COUNT` in `src/server.ts` if adding UI tools.
+4. Run `npm run typecheck` to verify, then rebuild and redeploy.
 
 ## Build & dev
 
 ```bash
 npm install          # install deps
 npm run typecheck    # TypeScript check (no emit)
-npm run build        # compile to dist/
-npm run dev          # run with tsx (requires .env file)
+npm run build:ui     # bundle UI apps to dist/ui/ (Vite + vite-plugin-singlefile)
+npm run build        # build:ui + tsc (produces dist/)
+npm run dev          # run with tsx (requires .env file — needs dist/ui/ pre-built)
 npm run lint         # eslint --fix
 ```
 

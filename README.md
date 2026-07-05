@@ -2,14 +2,16 @@
 
 A remote MCP server for managing your arr stack via Claude.ai on mobile. Ask Claude to fix bad downloads, block release groups, request new content, and check what's trending — all from your phone.
 
-## Tools (54)
+## Tools (56)
 
 | Service | Count | Highlights |
 |---|---|---|
-| **Sonarr** | 18 | find series, episode history, delete file, blocklist, interactive search, grab release, add series, queue management |
-| **Radarr** | 16 | find movie, history, delete file, blocklist, interactive search, grab release, add movie, queue management |
+| **Sonarr** | 20 | find series, episode history, delete file, blocklist, interactive search, **interactive search UI**, grab release, add series, queue management |
+| **Radarr** | 18 | find movie, history, delete file, blocklist, interactive search, **interactive search UI**, grab release, add movie, queue management |
 | **qBittorrent** | 4 | list torrents, delete torrent, add via magnet link, sync VPN port |
 | **Seerr** | 12 | search, request movie/TV, approve/decline, trending, popular, upcoming, recommendations |
+
+The interactive search UI tools (`sonarr_interactive_search_ui`, `radarr_interactive_search_ui`) render a release table directly in Claude.ai chat — click **Grab** to send a release to the download client without copy-pasting GUIDs.
 
 ## Example workflows
 
@@ -17,9 +19,9 @@ A remote MCP server for managing your arr stack via Claude.ai on mobile. Ask Cla
 > "Rick and Morty S09E05 is playing the wrong episode"
 > → finds series → gets episode → checks history → deletes file → blocklists release → searches for replacement
 
-**Pick a specific release**
+**Pick a specific release (interactive UI)**
 > "Show me what's available for Severance S02E01"
-> → interactive search → table of releases with quality/size/seeders → grab chosen release
+> → interactive search UI → clickable release table renders in chat → click Grab → downloading
 
 **Manage requests**
 > "What requests are pending in Seerr?"

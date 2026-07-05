@@ -1,18 +1,18 @@
-import {randomUUID, createHash} from 'node:crypto';
+import {createHash} from 'node:crypto';
 
 import express from 'express';
 import {mcpAuthRouter} from '@modelcontextprotocol/sdk/server/auth/router.js';
 import {StreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import {isInitializeRequest} from '@modelcontextprotocol/sdk/types.js';
-import type {Server} from '@modelcontextprotocol/sdk/server/index.js';
+import type {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
 
-import {createMcpServer, validateAuthToken, ALL_TOOLS} from './server.js';
+import {createMcpServer, validateAuthToken, TOOL_COUNT} from './server.js';
 import {createOAuthProvider, createAuthorizationCode} from './oauth-provider.js';
 
 const SESSION_TTL_MS = 30 * 60 * 1000;
 
 interface SessionEntry {
-    server: Server;
+    server: McpServer;
     transport: StreamableHTTPServerTransport;
     tokenHash: string;
     lastAccessedAt: number;
@@ -56,10 +56,13 @@ export const startHttpServer = async (): Promise<void> => {
     });
 
     app.get('/health', (_req, res) => {
-        res.json({status: 'ok', tools: ALL_TOOLS.length});
+        res.json({status: 'ok', tools: TOOL_COUNT});
     });
 
     app.all('/mcp', async (req, res) => {
+        const sessionId = req.method === 'POST' ? req.headers['mcp-session-id'] as string | undefined : undefined;
+        console.error(`[arr-mcp] ${req.method} /mcp session=${sessionId ?? 'none'} auth=${req.headers.authorization ? 'yes' : 'NO'}`);
+
         const token = extractBearerToken(req.headers.authorization);
         if (!token) {
             res.status(401).json({error: 'Unauthorized'});
@@ -94,15 +97,19 @@ export const startHttpServer = async (): Promise<void> => {
                 return;
             }
 
-            if (!sessionId && isInitializeRequest(parsedBody)) {
+            if (isInitializeRequest(parsedBody)) {
                 if (!validateAuthToken(req.headers.authorization)) {
                     res.status(401).json({error: 'Unauthorized'});
                     return;
                 }
                 const tokenHash = createHash('sha256').update(token).digest('hex');
+                // Deterministic session ID: same token → same ID after every restart.
+                // Claude.ai gets the same session ID back after re-initializing, so it
+                // never notices the container restarted.
+                const deterministicSessionId = tokenHash.slice(0, 36);
                 const newServer = createMcpServer();
                 const newTransport = new StreamableHTTPServerTransport({
-                    sessionIdGenerator: (): string => randomUUID(),
+                    sessionIdGenerator: (): string => deterministicSessionId,
                     onsessioninitialized: (newSessionId: string): void => {
                         sessions.set(newSessionId, {
                             server: newServer,
@@ -121,14 +128,18 @@ export const startHttpServer = async (): Promise<void> => {
                 return;
             }
 
-            res.status(400).json({jsonrpc: '2.0', error: {code: -32000, message: 'Bad Request: No valid session ID provided'}, id: null});
+            if (sessionId) {
+                res.status(404).json({jsonrpc: '2.0', error: {code: -32001, message: 'Session not found'}, id: null});
+            } else {
+                res.status(400).json({jsonrpc: '2.0', error: {code: -32000, message: 'Bad Request: No valid session ID provided'}, id: null});
+            }
             return;
         }
 
         if (req.method === 'GET' || req.method === 'DELETE') {
             const sessionId = req.headers['mcp-session-id'] as string | undefined;
             if (!sessionId || !sessions.has(sessionId)) {
-                res.status(400).json({error: 'Invalid or missing session ID'});
+                res.status(404).json({error: 'Session not found'});
                 return;
             }
             const entry = sessions.get(sessionId)!;

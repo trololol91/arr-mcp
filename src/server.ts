@@ -1,11 +1,17 @@
-import {Server} from '@modelcontextprotocol/sdk/server/index.js';
-import {CallToolRequestSchema, ListToolsRequestSchema} from '@modelcontextprotocol/sdk/types.js';
+import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
+import {registerAppTool, registerAppResource, RESOURCE_MIME_TYPE} from '@modelcontextprotocol/ext-apps/server';
+import {z} from 'zod';
+import {readFileSync} from 'node:fs';
+import {fileURLToPath} from 'node:url';
+import {join, dirname} from 'node:path';
 
+import {sonarrGet} from './services/sonarr.js';
+import {radarrGet} from './services/radarr.js';
 import {sonarrTools} from './tools/sonarr.js';
 import {radarrTools} from './tools/radarr.js';
 import {qbtTools} from './tools/qbittorrent.js';
 import {serrTools} from './tools/seerr.js';
-import type {ToolModule} from './tools/types.js';
+import type {ToolInputSchema, ToolModule} from './tools/types.js';
 
 export const ALL_TOOLS: ToolModule[] = [
     ...sonarrTools,
@@ -14,32 +20,116 @@ export const ALL_TOOLS: ToolModule[] = [
     ...serrTools
 ];
 
-export const createMcpServer = (): Server => {
-    const server = new Server(
-        {name: 'arr-mcp', version: '0.1.0'},
-        {capabilities: {tools: {}}}
-    );
+export const TOOL_COUNT = ALL_TOOLS.length + 2;
 
-    server.setRequestHandler(ListToolsRequestSchema, () =>
-        Promise.resolve({
-            tools: ALL_TOOLS.map(({name, description, inputSchema}) => ({name, description, inputSchema}))
+function toZodShape(schema: ToolInputSchema): Record<string, z.ZodTypeAny> {
+    const required = new Set(schema.required ?? []);
+    const shape: Record<string, z.ZodTypeAny> = {};
+
+    for (const [key, rawProp] of Object.entries(schema.properties)) {
+        const prop = rawProp as Record<string, unknown>;
+        let zodType: z.ZodTypeAny;
+
+        switch (prop['type']) {
+            case 'string':  zodType = z.string(); break;
+            case 'number':  zodType = z.number(); break;
+            case 'boolean': zodType = z.boolean(); break;
+            default:        zodType = z.unknown(); break;
+        }
+
+        if (typeof prop['description'] === 'string') {
+            zodType = zodType.describe(prop['description']);
+        }
+
+        shape[key] = required.has(key) ? zodType : zodType.optional();
+    }
+
+    return shape;
+}
+
+export const createMcpServer = (): McpServer => {
+    const server = new McpServer({name: 'arr-mcp', version: '0.1.0'});
+
+    for (const t of ALL_TOOLS) {
+        server.registerTool(t.name, {
+            description: t.description,
+            inputSchema: toZodShape(t.inputSchema),
+        }, async (args) => {
+            try {
+                const result = await t.handle(args as Record<string, unknown>);
+                return {content: [{type: 'text', text: JSON.stringify(result, null, 2)}]};
+            } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : String(err);
+                return {content: [{type: 'text', text: message}], isError: true};
+            }
+        });
+    }
+
+    const uiDir = join(dirname(fileURLToPath(import.meta.url)), '../dist/ui');
+    const sonarrHtml = readFileSync(join(uiDir, 'sonarr-releases', 'index.html'), 'utf-8');
+    const radarrHtml = readFileSync(join(uiDir, 'radarr-releases', 'index.html'), 'utf-8');
+
+    registerAppTool(server, 'sonarr_interactive_search_ui', {
+        title: 'Sonarr Release Browser',
+        description: 'Show an interactive release table for an episode — click Grab to download.',
+        inputSchema: {episodeId: z.number().describe('Episode id from sonarr_get_episode')},
+        _meta: {ui: {resourceUri: 'ui://arr-mcp/sonarr-releases.html'}},
+    }, async ({episodeId}) => {
+        const raw = await sonarrGet(`/release?episodeId=${episodeId}`) as Record<string, unknown>[];
+        const releases = raw.map((r) => ({
+            title: r['title'],
+            quality: r['quality'],
+            size: r['size'],
+            seeders: r['seeders'],
+            leechers: r['leechers'],
+            releaseGroup: r['releaseGroup'],
+            indexer: r['indexer'],
+            guid: r['guid'],
+            indexerId: r['indexerId'],
+            protocol: r['protocol'],
+            rejected: r['rejected'],
+            rejections: r['rejections'],
+        }));
+        return {content: [{type: 'text', text: JSON.stringify(releases)}]};
+    });
+
+    registerAppResource(server, 'Sonarr Release Browser', 'ui://arr-mcp/sonarr-releases.html',
+        {description: 'Interactive release table for Sonarr episodes'},
+        async () => ({
+            contents: [{uri: 'ui://arr-mcp/sonarr-releases.html', mimeType: RESOURCE_MIME_TYPE, text: sonarrHtml}],
         })
     );
 
-    server.setRequestHandler(CallToolRequestSchema, async (request) => {
-        const {name, arguments: args = {}} = request.params;
-        const tool = ALL_TOOLS.find((t) => t.name === name);
-        if (!tool) {
-            return {content: [{type: 'text', text: `Unknown tool: ${name}`}], isError: true};
-        }
-        try {
-            const result = await tool.handle(args);
-            return {content: [{type: 'text', text: JSON.stringify(result, null, 2)}]};
-        } catch (err: unknown) {
-            const message = err instanceof Error ? err.message : String(err);
-            return {content: [{type: 'text', text: message}], isError: true};
-        }
+    registerAppTool(server, 'radarr_interactive_search_ui', {
+        title: 'Radarr Release Browser',
+        description: 'Show an interactive release table for a movie — click Grab to download.',
+        inputSchema: {movieId: z.number().describe('Movie id from radarr_find_movie')},
+        _meta: {ui: {resourceUri: 'ui://arr-mcp/radarr-releases.html'}},
+    }, async ({movieId}) => {
+        const raw = await radarrGet(`/release?movieId=${movieId}`) as Record<string, unknown>[];
+        const releases = raw.map((r) => ({
+            title: r['title'],
+            quality: r['quality'],
+            size: r['size'],
+            seeders: r['seeders'],
+            leechers: r['leechers'],
+            releaseGroup: r['releaseGroup'],
+            indexer: r['indexer'],
+            guid: r['guid'],
+            indexerId: r['indexerId'],
+            protocol: r['protocol'],
+            rejected: r['rejected'],
+            rejections: r['rejections'],
+        }));
+        return {content: [{type: 'text', text: JSON.stringify(releases)}]};
     });
+
+    registerAppResource(server, 'Radarr Release Browser', 'ui://arr-mcp/radarr-releases.html',
+        {description: 'Interactive release table for Radarr movies'},
+        async () => ({
+            contents: [{uri: 'ui://arr-mcp/radarr-releases.html', mimeType: RESOURCE_MIME_TYPE, text: radarrHtml}],
+        })
+    );
 
     return server;
 };
