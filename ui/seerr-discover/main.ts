@@ -17,6 +17,16 @@ interface PageData {
     items: DiscoverItem[];
 }
 
+interface Ratings {
+    rt?: {criticsRating?: string; criticsScore?: number; audienceRating?: string; audienceScore?: number; url?: string};
+    imdb?: {criticsScore?: number; url?: string};
+    // TV-only (returns RT shape directly)
+    criticsRating?: string;
+    criticsScore?: number;
+    audienceRating?: string;
+    audienceScore?: number;
+}
+
 // MediaStatus: 1=unknown, 2=pending, 3=processing, 4=partial, 5=available
 function statusBadge(st: number | null | undefined): string {
     switch (st) {
@@ -36,11 +46,35 @@ function escHtml(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function rtScoreHtml(score: number | undefined, rating: string | undefined): string {
+    if (score === undefined) return '';
+    const cls = rating === 'Certified Fresh' ? 'rt-certified' : score >= 60 ? 'rt-fresh' : 'rt-rotten';
+    const icon = rating === 'Certified Fresh' ? '🍅✓' : score >= 60 ? '🍅' : '🤢';
+    return `<span class="${cls}">${icon} ${score}%</span>`;
+}
+
+function popcornScoreHtml(score: number | undefined, rating: string | undefined): string {
+    if (score === undefined) return '';
+    const cls = rating === 'Upright' || score >= 60 ? 'rt-popcorn-fresh' : 'rt-popcorn-spilled';
+    return `<span class="${cls}">🍿 ${score}%</span>`;
+}
+
+function renderRatings(r: Ratings): string {
+    const rt = r.rt ?? (r.criticsScore !== undefined ? r : undefined);
+    const imdb = r.imdb;
+    const parts: string[] = [];
+    if (rt) {
+        parts.push(rtScoreHtml(rt.criticsScore, rt.criticsRating));
+        if (rt.audienceScore !== undefined) parts.push(popcornScoreHtml(rt.audienceScore, rt.audienceRating));
+    }
+    if (imdb?.criticsScore) parts.push(`<span class="rt-imdb">IMDb ${imdb.criticsScore}</span>`);
+    return parts.length ? `<div class="rt-scores">${parts.join('')}</div>` : '<span class="req-err">Not found</span>';
+}
+
 function renderCards(items: DiscoverItem[], container: HTMLElement): void {
-    for (const [i, item] of items.entries()) {
+    for (const item of items) {
         const card = document.createElement('div');
         card.className = 'card';
-        card.dataset['idx'] = String(i);
 
         const poster = item.po
             ? `<img class="poster" src="${escHtml(item.po)}" alt="" loading="lazy">`
@@ -54,21 +88,19 @@ function renderCards(items: DiscoverItem[], container: HTMLElement): void {
                 ${item.ov ? `<div class="overview">${escHtml(item.ov)}${item.ov.length >= 150 ? ` <button class="overview-more">···</button>` : ''}</div>` : ''}
                 <div class="actions">
                     ${statusBadge(item.st)}
-                    ${canRequest(item.st)
-                        ? `<button class="req">Request</button>`
-                        : ''}
+                    <button class="btn-rt">Ratings</button>
+                    ${canRequest(item.st) ? `<button class="req">Request</button>` : ''}
                 </div>
             </div>`;
 
         const moreBtn = card.querySelector<HTMLButtonElement>('button.overview-more');
-        if (moreBtn) {
-            moreBtn.addEventListener('click', () => void handleExpandOverview(item, moreBtn));
-        }
+        if (moreBtn) moreBtn.addEventListener('click', () => void handleExpandOverview(item, moreBtn));
 
-        const btn = card.querySelector<HTMLButtonElement>('button.req');
-        if (btn) {
-            btn.addEventListener('click', () => void handleRequest(item, btn));
-        }
+        const rtBtn = card.querySelector<HTMLButtonElement>('button.btn-rt');
+        if (rtBtn) rtBtn.addEventListener('click', () => void handleLoadRatings(item, rtBtn));
+
+        const reqBtn = card.querySelector<HTMLButtonElement>('button.req');
+        if (reqBtn) reqBtn.addEventListener('click', () => void handleRequest(item, reqBtn));
 
         container.appendChild(card);
     }
@@ -93,6 +125,24 @@ async function handleExpandOverview(item: DiscoverItem, btn: HTMLButtonElement):
     }
 }
 
+async function handleLoadRatings(item: DiscoverItem, btn: HTMLButtonElement): Promise<void> {
+    btn.textContent = '…';
+    btn.disabled = true;
+    try {
+        await connectionReady;
+        const result = await app.callServerTool({
+            name: 'seerr_get_ratings',
+            arguments: {tmdbId: item.mid, mediaType: item.mt === 'm' ? 'movie' : 'tv'},
+        });
+        const block = (result as {content?: Array<{text?: string}>}).content?.[0];
+        const ratings = JSON.parse(block?.text ?? '{}') as Ratings;
+        btn.replaceWith(document.createRange().createContextualFragment(renderRatings(ratings)));
+    } catch (err: unknown) {
+        btn.textContent = 'Ratings';
+        btn.disabled = false;
+    }
+}
+
 async function handleRequest(item: DiscoverItem, btn: HTMLButtonElement): Promise<void> {
     btn.disabled = true;
     btn.textContent = '…';
@@ -108,11 +158,10 @@ async function handleRequest(item: DiscoverItem, btn: HTMLButtonElement): Promis
         const msg = err instanceof Error ? err.message : String(err);
         btn.disabled = false;
         btn.textContent = 'Request';
-        const actions = btn.parentElement!;
         const errSpan = document.createElement('span');
         errSpan.className = 'req-err';
         errSpan.textContent = msg;
-        actions.appendChild(errSpan);
+        btn.parentElement!.appendChild(errSpan);
     }
 }
 
@@ -151,7 +200,7 @@ async function loadMore(): Promise<void> {
         totalPages = data.totalPages;
         renderCards(data.items, grid!);
         updateFooter();
-    } catch (err: unknown) {
+    } catch {
         if (btn) { btn.disabled = false; btn.textContent = 'Load more'; }
     }
 }

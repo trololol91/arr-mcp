@@ -198,6 +198,24 @@ export const serrTools: ToolModule[] = [
         }
     },
     {
+        name: 'seerr_get_ratings',
+        description: 'Get Rotten Tomatoes and IMDB ratings for a movie or TV show by TMDB id. Movies return both RT and IMDB; TV shows return RT only.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                tmdbId: {type: 'number', description: 'TMDB id'},
+                mediaType: {type: 'string', description: 'movie or tv'},
+            },
+            required: ['tmdbId', 'mediaType'],
+        },
+        handle: async (args) => {
+            const path = args['mediaType'] === 'movie'
+                ? `/movie/${args['tmdbId']}/ratingscombined`
+                : `/tv/${args['tmdbId']}/ratings`;
+            return serrGet(path);
+        }
+    },
+    {
         name: 'seerr_request_by_tmdb',
         description: 'Request a movie or TV show by TMDB id only — use this from the discovery UI. For TV shows, tvdbId is looked up automatically.',
         inputSchema: {

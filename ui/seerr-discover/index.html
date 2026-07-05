@@ -58,6 +58,22 @@
     button.req:disabled { opacity: 0.5; cursor: default; }
     .req-ok { color: var(--success); font-size: 11px; }
     .req-err { color: var(--error); font-size: 11px; }
+    button.btn-rt { background: none; border: 1px solid var(--border); border-radius: var(--radius); padding: 2px 7px; cursor: pointer; font-size: 11px; color: var(--text2); white-space: nowrap; }
+    button.btn-rt:hover:not(:disabled) { background: var(--border); }
+    button.btn-rt:disabled { opacity: 0.5; cursor: default; }
+    .rt-scores { font-size: 11px; display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+    .rt-fresh { color: #16a34a; font-weight: 600; }
+    .rt-rotten { color: var(--error); font-weight: 600; }
+    .rt-certified { color: #15803d; font-weight: 700; }
+    .rt-imdb { color: #f59e0b; font-weight: 600; }
+    .rt-popcorn-fresh { color: #16a34a; font-weight: 600; }
+    .rt-popcorn-spilled { color: var(--error); font-weight: 600; }
+    [data-theme="dark"] .rt-fresh { color: #86efac; }
+    [data-theme="dark"] .rt-rotten { color: #fca5a5; }
+    [data-theme="dark"] .rt-certified { color: #4ade80; }
+    [data-theme="dark"] .rt-imdb { color: #fcd34d; }
+    [data-theme="dark"] .rt-popcorn-fresh { color: #86efac; }
+    [data-theme="dark"] .rt-popcorn-spilled { color: #fca5a5; }
     #footer { margin-top: 12px; text-align: center; }
     #load-more { background: var(--bg2); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 16px; cursor: pointer; font-size: 12px; }
     #load-more:hover { background: var(--border); }
