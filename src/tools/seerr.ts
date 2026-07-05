@@ -167,5 +167,87 @@ export const serrTools: ToolModule[] = [
             required: ['tmdbId']
         },
         handle: async (args) => serrGet(`/tv/${args['tmdbId']}/recommendations?page=${(args['page'] as number | undefined) ?? 1}`)
-    }
+    },
+    {
+        name: 'seerr_get_overview',
+        description: 'Get the full overview/description for a movie or TV show by TMDB id. Used by the discovery UI to expand truncated overviews.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                tmdbId: {type: 'number', description: 'TMDB id'},
+                mediaType: {type: 'string', description: 'movie or tv'}
+            },
+            required: ['tmdbId', 'mediaType']
+        },
+        handle: async (args) => {
+            const path = args['mediaType'] === 'movie' ? `/movie/${args['tmdbId']}` : `/tv/${args['tmdbId']}`;
+            const details = await serrGet(path) as {overview?: string};
+            return details.overview ?? '';
+        }
+    },
+    {
+        name: 'seerr_request_by_tmdb',
+        description: 'Request a movie or TV show by TMDB id only — use this from the discovery UI. For TV shows, tvdbId is looked up automatically.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                tmdbId: {type: 'number', description: 'TMDB id'},
+                mediaType: {type: 'string', description: 'movie or tv'}
+            },
+            required: ['tmdbId', 'mediaType']
+        },
+        handle: async (args) => {
+            if (args['mediaType'] === 'movie') {
+                return serrPost('/request', {mediaType: 'movie', mediaId: args['tmdbId']});
+            }
+            const details = await serrGet(`/tv/${args['tmdbId']}`) as {externalIds?: {tvdbId?: number}};
+            const tvdbId = details.externalIds?.tvdbId;
+            if (!tvdbId) throw new Error('Could not resolve TVDB id for this TV show');
+            return serrPost('/request', {mediaType: 'tv', mediaId: args['tmdbId'], tvdbId});
+        }
+    },
+    {
+        name: 'seerr_discover_page',
+        description: 'Fetch a page of discover results for the Seerr discovery UI — used for pagination. type: trending, popular_movies, popular_tv, upcoming.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                type: {type: 'string', description: 'trending, popular_movies, popular_tv, or upcoming'},
+                page: {type: 'number', description: 'Page number'}
+            },
+            required: ['type', 'page']
+        },
+        handle: async (args) => {
+            const paths: Record<string, string> = {
+                trending: '/discover/trending',
+                popular_movies: '/discover/movies',
+                popular_tv: '/discover/tv',
+                upcoming: '/discover/movies/upcoming',
+            };
+            const path = paths[args['type'] as string];
+            if (!path) throw new Error(`Unknown discover type: ${args['type'] as string}`);
+            const raw = await serrGet(`${path}?page=${args['page'] as number}`) as {
+                page: number; totalPages: number;
+                results: Record<string, unknown>[];
+            };
+            return trimDiscoverPage(raw, args['type'] as string);
+        }
+    },
 ];
+
+const TMDB_IMG = 'https://image.tmdb.org/t/p/w342';
+
+export const trimDiscoverPage = (raw: {page: number; totalPages: number; results: Record<string, unknown>[]}, type: string) => ({
+    type,
+    page: raw.page,
+    totalPages: raw.totalPages,
+    items: raw.results.slice(0, 10).map((r) => ({
+        mid: r['id'],
+        mt: r['mediaType'] === 'movie' ? 'm' : 't',
+        ti: r['title'] ?? r['name'],
+        yr: new Date(String(r['releaseDate'] ?? r['firstAirDate'] ?? '1970')).getFullYear(),
+        po: r['posterPath'] ? `${TMDB_IMG}${r['posterPath'] as string}` : null,
+        ov: r['overview'] ? String(r['overview']).slice(0, 150) : null,
+        st: (r['mediaInfo'] as Record<string, unknown> | null)?.['status'] ?? null,
+    })),
+});

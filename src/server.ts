@@ -7,10 +7,11 @@ import {join, dirname} from 'node:path';
 
 import {sonarrGet} from './services/sonarr.js';
 import {radarrGet} from './services/radarr.js';
+import {serrGet} from './services/seerr.js';
 import {sonarrTools} from './tools/sonarr.js';
 import {radarrTools} from './tools/radarr.js';
 import {qbtTools} from './tools/qbittorrent.js';
-import {serrTools} from './tools/seerr.js';
+import {serrTools, trimDiscoverPage} from './tools/seerr.js';
 import {anilistTools} from './tools/anilist.js';
 import type {ToolInputSchema, ToolModule} from './tools/types.js';
 
@@ -22,7 +23,7 @@ export const ALL_TOOLS: ToolModule[] = [
     ...anilistTools,
 ];
 
-export const TOOL_COUNT = ALL_TOOLS.length + 2;
+export const TOOL_COUNT = ALL_TOOLS.length + 6; // +2 release browsers, +4 seerr discover
 
 function toZodShape(schema: ToolInputSchema): Record<string, z.ZodTypeAny> {
     const required = new Set(schema.required ?? []);
@@ -70,6 +71,7 @@ export const createMcpServer = (): McpServer => {
     const uiDir = join(dirname(fileURLToPath(import.meta.url)), '../dist/ui');
     const sonarrHtml = readFileSync(join(uiDir, 'sonarr-releases', 'index.html'), 'utf-8');
     const radarrHtml = readFileSync(join(uiDir, 'radarr-releases', 'index.html'), 'utf-8');
+    const serrDiscoverHtml = readFileSync(join(uiDir, 'seerr-discover', 'index.html'), 'utf-8');
 
     registerAppTool(server, 'sonarr_interactive_search_ui', {
         title: 'Sonarr Release Browser',
@@ -126,6 +128,45 @@ export const createMcpServer = (): McpServer => {
         {description: 'Interactive release table for Radarr movies'},
         async () => ({
             contents: [{uri: 'ui://arr-mcp/radarr-releases.html', mimeType: RESOURCE_MIME_TYPE, text: radarrHtml}],
+        })
+    );
+
+    const discoverPaths: Record<string, string> = {
+        trending: '/discover/trending',
+        popular_movies: '/discover/movies',
+        popular_tv: '/discover/tv',
+        upcoming: '/discover/movies/upcoming',
+    };
+    const discoverTitles: Record<string, string> = {
+        trending: 'Trending',
+        popular_movies: 'Popular Movies',
+        popular_tv: 'Popular TV',
+        upcoming: 'Upcoming Movies',
+    };
+
+    for (const [type, path] of Object.entries(discoverPaths)) {
+        registerAppTool(server, `seerr_${type}_ui`, {
+            title: `Seerr ${discoverTitles[type]}`,
+            description: `Browse ${discoverTitles[type]} in Seerr — click Request to add to your library.`,
+            inputSchema: {page: z.number().optional().describe('Page number (default 1)')},
+            _meta: {ui: {resourceUri: 'ui://arr-mcp/seerr-discover.html'}},
+        }, async ({page}) => {
+            const raw = await serrGet(`${path}?page=${page ?? 1}`) as {
+                page: number; totalPages: number; results: Record<string, unknown>[];
+            };
+            return {content: [{type: 'text', text: JSON.stringify(trimDiscoverPage(raw, type))}]};
+        });
+    }
+
+    registerAppResource(server, 'Seerr Discovery', 'ui://arr-mcp/seerr-discover.html',
+        {description: 'Browse trending, popular, and upcoming content in Seerr'},
+        async () => ({
+            contents: [{
+                uri: 'ui://arr-mcp/seerr-discover.html',
+                mimeType: RESOURCE_MIME_TYPE,
+                text: serrDiscoverHtml,
+                _meta: {ui: {csp: {resourceDomains: ['https://image.tmdb.org']}}},
+            }],
         })
     );
 
