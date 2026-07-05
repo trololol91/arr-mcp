@@ -126,8 +126,13 @@ app.ontoolresult = (params) => {
     }
 };
 
+if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    document.documentElement.dataset['theme'] = 'dark';
+}
+
 app.onhostcontextchanged = (ctx) => {
-    document.documentElement.dataset['theme'] = (ctx as {theme?: string}).theme ?? 'light';
+    const theme = (ctx as {theme?: string}).theme;
+    if (theme) document.documentElement.dataset['theme'] = theme;
 };
 
 connectionReady = app.connect(new PostMessageTransport(window.parent, window.parent));
