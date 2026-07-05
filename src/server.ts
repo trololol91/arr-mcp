@@ -96,7 +96,7 @@ export const createMcpServer = (): McpServer => {
         _meta: {ui: {resourceUri: 'ui://arr-mcp/sonarr-releases.html'}},
     }, async ({episodeId}) => {
         const raw = await sonarrGet(`/release?episodeId=${episodeId}`) as Record<string, unknown>[];
-        const releases = raw.slice(0, 50).map((r) => ({
+        const releases = raw.filter((r) => !r['rejected']).slice(0, 50).map((r) => ({
             t: r['title'],
             q: (r['quality'] as Record<string, Record<string, string>> | undefined)?.quality?.name ?? '?',
             s: r['size'],
@@ -125,7 +125,7 @@ export const createMcpServer = (): McpServer => {
         _meta: {ui: {resourceUri: 'ui://arr-mcp/radarr-releases.html'}},
     }, async ({movieId}) => {
         const raw = await radarrGet(`/release?movieId=${movieId}`) as Record<string, unknown>[];
-        const releases = raw.slice(0, 50).map((r) => ({
+        const releases = raw.filter((r) => !r['rejected']).slice(0, 50).map((r) => ({
             t: r['title'],
             q: (r['quality'] as Record<string, Record<string, string>> | undefined)?.quality?.name ?? '?',
             s: r['size'],

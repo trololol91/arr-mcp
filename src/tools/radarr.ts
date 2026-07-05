@@ -273,7 +273,10 @@ export const radarrTools: ToolModule[] = [
             },
             required: ['movieId']
         },
-        handle: async (args) => radarrGet(`/release?movieId=${args['movieId']}`)
+        handle: async (args) => {
+            const releases = await radarrGet(`/release?movieId=${args['movieId']}`) as Record<string, unknown>[];
+            return releases.filter((r) => !r['rejected']);
+        }
     },
     {
         name: 'radarr_grab_release',

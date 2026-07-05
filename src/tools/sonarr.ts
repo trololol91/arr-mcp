@@ -373,7 +373,10 @@ export const sonarrTools: ToolModule[] = [
             },
             required: ['episodeId']
         },
-        handle: async (args) => sonarrGet(`/release?episodeId=${args['episodeId']}`)
+        handle: async (args) => {
+            const releases = await sonarrGet(`/release?episodeId=${args['episodeId']}`) as Record<string, unknown>[];
+            return releases.filter((r) => !r['rejected']);
+        }
     },
     {
         name: 'sonarr_grab_release',
