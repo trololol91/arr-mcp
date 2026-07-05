@@ -1,0 +1,38 @@
+services:
+  arr-mcp:
+    image: ghcr.io/trololol91/arr-mcp:latest
+    # build: .   # uncomment to build locally instead
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # Public URL Claude.ai uses to reach this server (required for OAuth)
+      ISSUER_URL: https://mcp.example.com
+
+      # A strong random secret — generate with: openssl rand -hex 32
+      MCP_AUTH_TOKEN: your-secret-token-here
+
+      # Sonarr
+      SONARR_URL: http://sonarr:8989
+      SONARR_API_KEY: your-sonarr-api-key
+
+      # Radarr
+      RADARR_URL: http://radarr:7878
+      RADARR_API_KEY: your-radarr-api-key
+
+      # Overseerr / Seerr
+      SEERR_URL: http://seerr:5055
+      SEERR_API_KEY: your-seerr-api-key
+
+      # qBittorrent (no auth needed if using the built-in bypass)
+      QBT_URL: http://qbittorrent:8080
+
+      # Optional — defaults to 3000
+      # MCP_PORT: 3000
+
+    networks:
+      - arr
+
+networks:
+  arr:
+    external: true   # attach to the same network as your arr stack
