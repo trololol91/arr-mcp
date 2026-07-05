@@ -25,4 +25,5 @@ const radarrFetch = async (method: string, path: string, body?: unknown): Promis
 
 export const radarrGet = (path: string): Promise<unknown> => radarrFetch('GET', path);
 export const radarrPost = (path: string, body: unknown): Promise<unknown> => radarrFetch('POST', path, body);
+export const radarrPut = (path: string, body: unknown): Promise<unknown> => radarrFetch('PUT', path, body);
 export const radarrDelete = (path: string, body?: unknown): Promise<unknown> => radarrFetch('DELETE', path, body);

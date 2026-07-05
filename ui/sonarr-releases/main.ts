@@ -1,23 +1,16 @@
 import {App, PostMessageTransport} from '@modelcontextprotocol/ext-apps';
 
-interface Quality {
-    quality: {name: string};
-    revision?: {version: number};
-}
-
 interface Release {
-    title: string;
-    quality: Quality;
-    size: number;
-    seeders: number;
-    leechers: number;
-    releaseGroup: string;
-    indexer: string;
-    guid: string;
-    indexerId: number;
-    protocol: 'torrent' | 'usenet';
-    rejected?: boolean;
-    rejections?: string[];
+    t: string;
+    q: string;
+    s: number;
+    se: number;
+    rg: string;
+    idx: string;
+    g: string;
+    iid: number;
+    p: 'torrent' | 'usenet';
+    rej?: string[];
 }
 
 function fmtSize(bytes: number): string {
@@ -41,20 +34,21 @@ function renderTable(releases: Release[]): void {
     }
 
     const rows = releases.map((r, i) => {
-        const proto = r.protocol === 'torrent'
+        const proto = r.p === 'torrent'
             ? `<span class="proto-badge proto-torrent">TRK</span>`
             : `<span class="proto-badge proto-usenet">NZB</span>`;
-        const seeds = r.protocol === 'torrent' ? r.seeders : '—';
-        const rejected = r.rejected
-            ? ` title="${(r.rejections ?? []).join(', ')}" style="opacity:.45"`
+        const seeds = r.p === 'torrent' ? r.se : '—';
+        const rejected = r.rej
+            ? ` title="${escHtml(r.rej.join(', '))}" style="opacity:.45"`
             : '';
         return `
         <tr data-idx="${i}"${rejected}>
-            <td class="title" title="${escHtml(r.title)}">${escHtml(r.title)}</td>
-            <td>${escHtml(r.quality?.quality?.name ?? '?')}</td>
-            <td>${fmtSize(r.size)}</td>
+            <td class="title" title="${escHtml(r.t)}">${escHtml(r.t)}</td>
+            <td>${escHtml(r.q)}</td>
+            <td>${fmtSize(r.s)}</td>
             <td class="muted">${seeds}</td>
-            <td class="muted">${escHtml(r.releaseGroup ?? '?')}</td>
+            <td class="muted">${escHtml(r.rg ?? '?')}</td>
+            <td class="muted">${escHtml(r.idx ?? '?')}</td>
             <td>${proto}</td>
             <td><button class="grab" data-idx="${i}">Grab</button></td>
         </tr>`;
@@ -70,6 +64,7 @@ function renderTable(releases: Release[]): void {
                     <th>Size</th>
                     <th>Seeds</th>
                     <th>Group</th>
+                    <th>Indexer</th>
                     <th>Proto</th>
                     <th></th>
                 </tr>
@@ -93,7 +88,7 @@ async function handleGrab(release: Release, btn: HTMLButtonElement): Promise<voi
         await connectionReady;
         await app.callServerTool({
             name: 'sonarr_grab_release',
-            arguments: {guid: release.guid, indexerId: release.indexerId},
+            arguments: {guid: release.g, indexerId: release.iid},
         });
         td.innerHTML = '<span class="grab-ok">✓ Grabbed</span>';
     } catch (err: unknown) {

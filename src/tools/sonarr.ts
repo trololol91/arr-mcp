@@ -179,8 +179,45 @@ export const sonarrTools: ToolModule[] = [
         handle: async (args) => sonarrGet(`/series/${args['seriesId']}`)
     },
     {
+        name: 'sonarr_update_series',
+        description: 'Update settings on an existing Sonarr series. Only provided fields are changed. Use sonarr_get_tags to resolve tag names.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                seriesId: {type: 'number', description: 'Series id from sonarr_find_series'},
+                qualityProfileId: {type: 'number', description: 'New quality profile id'},
+                monitored: {type: 'boolean', description: 'Set monitored status'},
+                tags: {type: 'array', items: {type: 'string'}, description: 'Replace tags with these labels (e.g. ["debrid"])'},
+                path: {type: 'string', description: 'Move series to a different root path'}
+            },
+            required: ['seriesId']
+        },
+        handle: async (args) => {
+            const series = await sonarrGet(`/series/${args['seriesId']}`) as Record<string, unknown>;
+            if (args['qualityProfileId'] !== undefined) series['qualityProfileId'] = args['qualityProfileId'];
+            if (args['monitored'] !== undefined) series['monitored'] = args['monitored'];
+            if (args['path'] !== undefined) series['path'] = args['path'];
+            if (args['tags'] !== undefined) {
+                const tagLabels = args['tags'] as string[];
+                const allTags = await sonarrGet('/tag') as Array<{id: number; label: string}>;
+                series['tags'] = tagLabels.map((label) => {
+                    const match = allTags.find((t) => t.label.toLowerCase() === label.toLowerCase());
+                    if (!match) throw new Error(`Unknown Sonarr tag: "${label}". Available: ${allTags.map((t) => t.label).join(', ')}`);
+                    return match.id;
+                });
+            }
+            return sonarrPut(`/series/${args['seriesId'] as number}`, series);
+        }
+    },
+    {
+        name: 'sonarr_get_tags',
+        description: 'List all tags configured in Sonarr.',
+        inputSchema: {type: 'object', properties: {}},
+        handle: async () => sonarrGet('/tag')
+    },
+    {
         name: 'sonarr_add_series',
-        description: 'Add a new TV series to Sonarr. Use sonarr_find_series first to get tvdbId and seasons. Supports monitor presets (all/future/missing/existing/first/latest/none) or a specific list of season numbers to monitor.',
+        description: 'Add a new TV series to Sonarr. Always call sonarr_get_tags first and ask the user which tag to apply before adding. Supports monitor presets (all/future/missing/existing/first/latest/none) or a specific list of season numbers to monitor.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -188,11 +225,12 @@ export const sonarrTools: ToolModule[] = [
                 title: {type: 'string', description: 'Series title from sonarr_find_series'},
                 qualityProfileId: {type: 'number', description: 'Quality profile id. Omit to use first available profile.'},
                 rootFolderPath: {type: 'string', description: 'Root folder path. Omit to use first available root folder.'},
+                tags: {type: 'array', items: {type: 'string'}, description: 'Tag labels to apply (e.g. ["debrid"]). Resolved to IDs automatically.'},
                 monitor: {type: 'string', description: 'Monitor preset: all (default), future, missing, existing, first, latest, none. Ignored if seasons is provided.'},
                 seasons: {type: 'array', items: {type: 'number'}, description: 'Specific season numbers to monitor (e.g. [2,3]). Overrides monitor preset.'},
                 searchOnAdd: {type: 'boolean', description: 'Search for missing episodes after adding (default: true)'}
             },
-            required: ['tvdbId', 'title']
+            required: ['tvdbId', 'title', 'tags']
         },
         handle: async (args) => {
             let qualityProfileId = args['qualityProfileId'] as number | undefined;
@@ -208,11 +246,17 @@ export const sonarrTools: ToolModule[] = [
                 rootFolderPath = folders[0].path;
             }
 
+            const tagLabels = args['tags'] as string[];
+            const allTags = await sonarrGet('/tag') as Array<{id: number; label: string}>;
+            const tagIds = tagLabels.map((label) => {
+                const match = allTags.find((t) => t.label.toLowerCase() === label.toLowerCase());
+                if (!match) throw new Error(`Unknown Sonarr tag: "${label}". Available: ${allTags.map((t) => t.label).join(', ')}`);
+                return match.id;
+            });
+
             const specificSeasons = args['seasons'] as number[] | undefined;
             const monitorPreset = specificSeasons ? 'none' : ((args['monitor'] as string | undefined) ?? 'all');
 
-            // When targeting specific seasons, look up the full season list so we
-            // can pass every season with the correct monitored flag.
             let seasonsPayload: Array<{seasonNumber: number; monitored: boolean}> | undefined;
             if (specificSeasons) {
                 const lookup = await sonarrGet(`/series/lookup?term=tvdb:${args['tvdbId'] as number}`) as Array<{seasons: Array<{seasonNumber: number}>}>;
@@ -228,6 +272,7 @@ export const sonarrTools: ToolModule[] = [
                 rootFolderPath,
                 monitored: true,
                 seasonFolder: true,
+                tags: tagIds,
                 ...(seasonsPayload ? {seasons: seasonsPayload} : {}),
                 addOptions: {
                     searchForMissingEpisodes: (args['searchOnAdd'] as boolean | undefined) ?? true,

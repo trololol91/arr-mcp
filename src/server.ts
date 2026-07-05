@@ -11,16 +11,18 @@ import {sonarrTools} from './tools/sonarr.js';
 import {radarrTools} from './tools/radarr.js';
 import {qbtTools} from './tools/qbittorrent.js';
 import {serrTools} from './tools/seerr.js';
+import {anilistTools} from './tools/anilist.js';
 import type {ToolInputSchema, ToolModule} from './tools/types.js';
 
 export const ALL_TOOLS: ToolModule[] = [
     ...sonarrTools,
     ...radarrTools,
     ...qbtTools,
-    ...serrTools
+    ...serrTools,
+    ...anilistTools,
 ];
 
-export const TOOL_COUNT = ALL_TOOLS.length + 2; // +2 for UI tools
+export const TOOL_COUNT = ALL_TOOLS.length + 2;
 
 function toZodShape(schema: ToolInputSchema): Record<string, z.ZodTypeAny> {
     const required = new Set(schema.required ?? []);
@@ -76,19 +78,17 @@ export const createMcpServer = (): McpServer => {
         _meta: {ui: {resourceUri: 'ui://arr-mcp/sonarr-releases.html'}},
     }, async ({episodeId}) => {
         const raw = await sonarrGet(`/release?episodeId=${episodeId}`) as Record<string, unknown>[];
-        const releases = raw.map((r) => ({
-            title: r['title'],
-            quality: r['quality'],
-            size: r['size'],
-            seeders: r['seeders'],
-            leechers: r['leechers'],
-            releaseGroup: r['releaseGroup'],
-            indexer: r['indexer'],
-            guid: r['guid'],
-            indexerId: r['indexerId'],
-            protocol: r['protocol'],
-            rejected: r['rejected'],
-            rejections: r['rejections'],
+        const releases = raw.slice(0, 50).map((r) => ({
+            t: r['title'],
+            q: (r['quality'] as Record<string, Record<string, string>> | undefined)?.quality?.name ?? '?',
+            s: r['size'],
+            se: r['seeders'],
+            rg: r['releaseGroup'],
+            idx: r['indexer'],
+            g: r['guid'],
+            iid: r['indexerId'],
+            p: r['protocol'],
+            rej: r['rejected'] ? r['rejections'] : undefined,
         }));
         return {content: [{type: 'text', text: JSON.stringify(releases)}]};
     });
@@ -107,19 +107,17 @@ export const createMcpServer = (): McpServer => {
         _meta: {ui: {resourceUri: 'ui://arr-mcp/radarr-releases.html'}},
     }, async ({movieId}) => {
         const raw = await radarrGet(`/release?movieId=${movieId}`) as Record<string, unknown>[];
-        const releases = raw.map((r) => ({
-            title: r['title'],
-            quality: r['quality'],
-            size: r['size'],
-            seeders: r['seeders'],
-            leechers: r['leechers'],
-            releaseGroup: r['releaseGroup'],
-            indexer: r['indexer'],
-            guid: r['guid'],
-            indexerId: r['indexerId'],
-            protocol: r['protocol'],
-            rejected: r['rejected'],
-            rejections: r['rejections'],
+        const releases = raw.slice(0, 50).map((r) => ({
+            t: r['title'],
+            q: (r['quality'] as Record<string, Record<string, string>> | undefined)?.quality?.name ?? '?',
+            s: r['size'],
+            se: r['seeders'],
+            rg: r['releaseGroup'],
+            idx: r['indexer'],
+            g: r['guid'],
+            iid: r['indexerId'],
+            p: r['protocol'],
+            rej: r['rejected'] ? r['rejections'] : undefined,
         }));
         return {content: [{type: 'text', text: JSON.stringify(releases)}]};
     });

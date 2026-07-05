@@ -1,4 +1,4 @@
-import {radarrGet, radarrPost, radarrDelete} from '../services/radarr.js';
+import {radarrGet, radarrPost, radarrPut, radarrDelete} from '../services/radarr.js';
 import type {ToolModule} from './types.js';
 
 export const radarrTools: ToolModule[] = [
@@ -143,8 +143,47 @@ export const radarrTools: ToolModule[] = [
         handle: async (args) => radarrGet(`/movie/${args['movieId']}`)
     },
     {
+        name: 'radarr_update_movie',
+        description: 'Update settings on an existing Radarr movie. Only provided fields are changed. Use radarr_get_tags to resolve tag names.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                movieId: {type: 'number', description: 'Movie id from radarr_find_movie'},
+                qualityProfileId: {type: 'number', description: 'New quality profile id'},
+                monitored: {type: 'boolean', description: 'Set monitored status'},
+                tags: {type: 'array', items: {type: 'string'}, description: 'Replace tags with these labels (e.g. ["debrid"])'},
+                path: {type: 'string', description: 'Move movie to a different path'},
+                minimumAvailability: {type: 'string', description: 'When to consider available: announced, inCinemas, released, tba'}
+            },
+            required: ['movieId']
+        },
+        handle: async (args) => {
+            const movie = await radarrGet(`/movie/${args['movieId']}`) as Record<string, unknown>;
+            if (args['qualityProfileId'] !== undefined) movie['qualityProfileId'] = args['qualityProfileId'];
+            if (args['monitored'] !== undefined) movie['monitored'] = args['monitored'];
+            if (args['path'] !== undefined) movie['path'] = args['path'];
+            if (args['minimumAvailability'] !== undefined) movie['minimumAvailability'] = args['minimumAvailability'];
+            if (args['tags'] !== undefined) {
+                const tagLabels = args['tags'] as string[];
+                const allTags = await radarrGet('/tag') as Array<{id: number; label: string}>;
+                movie['tags'] = tagLabels.map((label) => {
+                    const match = allTags.find((t) => t.label.toLowerCase() === label.toLowerCase());
+                    if (!match) throw new Error(`Unknown Radarr tag: "${label}". Available: ${allTags.map((t) => t.label).join(', ')}`);
+                    return match.id;
+                });
+            }
+            return radarrPut(`/movie/${args['movieId'] as number}`, movie);
+        }
+    },
+    {
+        name: 'radarr_get_tags',
+        description: 'List all tags configured in Radarr.',
+        inputSchema: {type: 'object', properties: {}},
+        handle: async () => radarrGet('/tag')
+    },
+    {
         name: 'radarr_add_movie',
-        description: 'Add a new movie to Radarr for monitoring and downloading. Use radarr_find_movie first to get the tmdbId.',
+        description: 'Add a new movie to Radarr for monitoring and downloading. Always call radarr_get_tags first and ask the user which tag to apply before adding.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -152,9 +191,10 @@ export const radarrTools: ToolModule[] = [
                 title: {type: 'string', description: 'Movie title from radarr_find_movie'},
                 qualityProfileId: {type: 'number', description: 'Quality profile id. Omit to use first available profile.'},
                 rootFolderPath: {type: 'string', description: 'Root folder path. Omit to use first available root folder.'},
+                tags: {type: 'array', items: {type: 'string'}, description: 'Tag labels to apply (e.g. ["debrid"]). Resolved to IDs automatically.'},
                 searchOnAdd: {type: 'boolean', description: 'Search for the movie after adding (default: true)'}
             },
-            required: ['tmdbId', 'title']
+            required: ['tmdbId', 'title', 'tags']
         },
         handle: async (args) => {
             let qualityProfileId = args['qualityProfileId'] as number | undefined;
@@ -169,12 +209,20 @@ export const radarrTools: ToolModule[] = [
                 if (!folders.length) throw new Error('No root folders found in Radarr');
                 rootFolderPath = folders[0].path;
             }
+            const tagLabels = args['tags'] as string[];
+            const allTags = await radarrGet('/tag') as Array<{id: number; label: string}>;
+            const tagIds = tagLabels.map((label) => {
+                const match = allTags.find((t) => t.label.toLowerCase() === label.toLowerCase());
+                if (!match) throw new Error(`Unknown Radarr tag: "${label}". Available: ${allTags.map((t) => t.label).join(', ')}`);
+                return match.id;
+            });
             return radarrPost('/movie', {
                 tmdbId: args['tmdbId'],
                 title: args['title'],
                 qualityProfileId,
                 rootFolderPath,
                 monitored: true,
+                tags: tagIds,
                 addOptions: {
                     searchForMovie: (args['searchOnAdd'] as boolean | undefined) ?? true
                 }
