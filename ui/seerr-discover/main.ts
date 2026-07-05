@@ -138,9 +138,8 @@ async function handleLoadRatings(item: DiscoverItem, btn: HTMLButtonElement): Pr
         const block = (result as {content?: Array<{text?: string}>}).content?.[0];
         const ratings = JSON.parse(block?.text ?? '{}') as Ratings;
         btn.replaceWith(document.createRange().createContextualFragment(renderRatings(ratings)));
-    } catch (err: unknown) {
-        btn.textContent = 'Ratings';
-        btn.disabled = false;
+    } catch {
+        btn.replaceWith(document.createRange().createContextualFragment('<span class="req-err">No ratings</span>'));
     }
 }
 

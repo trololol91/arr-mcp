@@ -212,7 +212,12 @@ export const serrTools: ToolModule[] = [
             const path = args['mediaType'] === 'movie'
                 ? `/movie/${args['tmdbId']}/ratingscombined`
                 : `/tv/${args['tmdbId']}/ratings`;
-            return serrGet(path);
+            try {
+                return await serrGet(path);
+            } catch (err: unknown) {
+                if (err instanceof Error && err.message.includes('404')) return {};
+                throw err;
+            }
         }
     },
     {
