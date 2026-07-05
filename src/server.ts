@@ -20,7 +20,7 @@ export const ALL_TOOLS: ToolModule[] = [
     ...serrTools
 ];
 
-export const TOOL_COUNT = ALL_TOOLS.length + 2;
+export const TOOL_COUNT = ALL_TOOLS.length + 2; // +2 for UI tools
 
 function toZodShape(schema: ToolInputSchema): Record<string, z.ZodTypeAny> {
     const required = new Set(schema.required ?? []);

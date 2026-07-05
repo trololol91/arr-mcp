@@ -182,6 +182,22 @@ export const radarrTools: ToolModule[] = [
         }
     },
     {
+        name: 'radarr_remove_movie',
+        description: 'Remove a movie from Radarr.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                movieId: {type: 'number', description: 'Movie id from radarr_find_movie'},
+                deleteFiles: {type: 'boolean', description: 'Delete media files from disk (default: true)'}
+            },
+            required: ['movieId']
+        },
+        handle: async (args) => {
+            const deleteFiles = (args['deleteFiles'] as boolean | undefined) ?? true;
+            return radarrDelete(`/movie/${args['movieId']}?deleteFiles=${deleteFiles}&addImportExclusion=false`);
+        }
+    },
+    {
         name: 'radarr_remove_from_queue',
         description: 'Remove an item from the Radarr download queue. Optionally blocklist the release so it will not be grabbed again.',
         inputSchema: {

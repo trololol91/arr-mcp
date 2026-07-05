@@ -1,4 +1,4 @@
-import {sonarrGet, sonarrPost, sonarrDelete} from '../services/sonarr.js';
+import {sonarrGet, sonarrPost, sonarrPut, sonarrDelete} from '../services/sonarr.js';
 import type {ToolModule} from './types.js';
 
 export const sonarrTools: ToolModule[] = [
@@ -180,7 +180,7 @@ export const sonarrTools: ToolModule[] = [
     },
     {
         name: 'sonarr_add_series',
-        description: 'Add a new TV series to Sonarr for monitoring and downloading. Use sonarr_find_series first to get the tvdbId.',
+        description: 'Add a new TV series to Sonarr. Use sonarr_find_series first to get tvdbId and seasons. Supports monitor presets (all/future/missing/existing/first/latest/none) or a specific list of season numbers to monitor.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -188,6 +188,8 @@ export const sonarrTools: ToolModule[] = [
                 title: {type: 'string', description: 'Series title from sonarr_find_series'},
                 qualityProfileId: {type: 'number', description: 'Quality profile id. Omit to use first available profile.'},
                 rootFolderPath: {type: 'string', description: 'Root folder path. Omit to use first available root folder.'},
+                monitor: {type: 'string', description: 'Monitor preset: all (default), future, missing, existing, first, latest, none. Ignored if seasons is provided.'},
+                seasons: {type: 'array', items: {type: 'number'}, description: 'Specific season numbers to monitor (e.g. [2,3]). Overrides monitor preset.'},
                 searchOnAdd: {type: 'boolean', description: 'Search for missing episodes after adding (default: true)'}
             },
             required: ['tvdbId', 'title']
@@ -205,6 +207,20 @@ export const sonarrTools: ToolModule[] = [
                 if (!folders.length) throw new Error('No root folders found in Sonarr');
                 rootFolderPath = folders[0].path;
             }
+
+            const specificSeasons = args['seasons'] as number[] | undefined;
+            const monitorPreset = specificSeasons ? 'none' : ((args['monitor'] as string | undefined) ?? 'all');
+
+            // When targeting specific seasons, look up the full season list so we
+            // can pass every season with the correct monitored flag.
+            let seasonsPayload: Array<{seasonNumber: number; monitored: boolean}> | undefined;
+            if (specificSeasons) {
+                const lookup = await sonarrGet(`/series/lookup?term=tvdb:${args['tvdbId'] as number}`) as Array<{seasons: Array<{seasonNumber: number}>}>;
+                const allSeasons = lookup[0]?.seasons ?? [];
+                const wanted = new Set(specificSeasons);
+                seasonsPayload = allSeasons.map((s) => ({seasonNumber: s.seasonNumber, monitored: wanted.has(s.seasonNumber)}));
+            }
+
             return sonarrPost('/series', {
                 tvdbId: args['tvdbId'],
                 title: args['title'],
@@ -212,12 +228,76 @@ export const sonarrTools: ToolModule[] = [
                 rootFolderPath,
                 monitored: true,
                 seasonFolder: true,
+                ...(seasonsPayload ? {seasons: seasonsPayload} : {}),
                 addOptions: {
                     searchForMissingEpisodes: (args['searchOnAdd'] as boolean | undefined) ?? true,
                     searchForCutoffUnmetEpisodes: false,
-                    monitor: 'all'
+                    monitor: monitorPreset
                 }
             });
+        }
+    },
+    {
+        name: 'sonarr_remove_series',
+        description: 'Remove or unmonitor a series or season. To change monitoring without deleting: provide monitor preset (all/future/missing/existing/first/latest/none) or seasonNumber with monitor=none. To delete files for a season: provide seasonNumber. To fully remove the series: provide neither monitor nor seasonNumber.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                seriesId: {type: 'number', description: 'Series id from sonarr_find_series'},
+                monitor: {type: 'string', description: 'New monitor preset: all, future, missing, existing, first, latest, none. Updates monitoring without deleting anything.'},
+                seasonNumber: {type: 'number', description: 'Target a specific season. Combined with monitor=none: unmonitors the season. Without monitor: deletes the season\'s files.'},
+                deleteFiles: {type: 'boolean', description: 'Delete media files from disk when removing a season or series (default: true)'}
+            },
+            required: ['seriesId']
+        },
+        handle: async (args) => {
+            const seriesId = args['seriesId'] as number;
+            const monitor = args['monitor'] as string | undefined;
+            const seasonNumber = args['seasonNumber'] as number | undefined;
+            const deleteFiles = (args['deleteFiles'] as boolean | undefined) ?? true;
+
+            if (monitor !== undefined) {
+                // Update monitoring — fetch series, patch seasons/monitored, PUT back
+                const series = await sonarrGet(`/series/${seriesId}`) as Record<string, unknown>;
+                const seasons = (series['seasons'] as Array<{seasonNumber: number; monitored: boolean}>) ?? [];
+
+                if (seasonNumber !== undefined) {
+                    // Unmonitor/remonitor a specific season only
+                    series['seasons'] = seasons.map((s) =>
+                        s.seasonNumber === seasonNumber ? {...s, monitored: monitor !== 'none'} : s
+                    );
+                } else {
+                    // Apply preset — mirror what Sonarr does internally for each preset
+                    const maxSeason = Math.max(...seasons.map((s) => s.seasonNumber));
+                    series['seasons'] = seasons.map((s) => {
+                        let monitored: boolean;
+                        switch (monitor) {
+                            case 'all':      monitored = true; break;
+                            case 'none':     monitored = false; break;
+                            case 'first':    monitored = s.seasonNumber === 1; break;
+                            case 'latest':   monitored = s.seasonNumber === maxSeason; break;
+                            case 'future':   monitored = false; break; // Sonarr handles future via series-level flag
+                            default:         monitored = s.monitored; break;
+                        }
+                        return {...s, monitored};
+                    });
+                    if (monitor === 'none') series['monitored'] = false;
+                    if (monitor === 'all')  series['monitored'] = true;
+                }
+
+                return sonarrPut(`/series/${seriesId}`, series);
+            }
+
+            if (seasonNumber !== undefined) {
+                // Delete files for the season
+                const files = await sonarrGet(`/episodefile?seriesId=${seriesId}&seasonNumber=${seasonNumber}`) as Array<{id: number}>;
+                if (!files.length) return {message: 'No files found for that season'};
+                if (deleteFiles) await sonarrDelete('/episodefile/bulk', {episodeFileIds: files.map((f) => f.id)});
+                return {message: `Deleted ${files.length} file(s) for season ${seasonNumber}`};
+            }
+
+            // Full series removal
+            return sonarrDelete(`/series/${seriesId}?deleteFiles=${deleteFiles}&addImportListExclusion=false`);
         }
     },
     {

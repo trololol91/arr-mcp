@@ -25,4 +25,5 @@ const sonarrFetch = async (method: string, path: string, body?: unknown): Promis
 
 export const sonarrGet = (path: string): Promise<unknown> => sonarrFetch('GET', path);
 export const sonarrPost = (path: string, body: unknown): Promise<unknown> => sonarrFetch('POST', path, body);
-export const sonarrDelete = (path: string): Promise<unknown> => sonarrFetch('DELETE', path);
+export const sonarrPut = (path: string, body: unknown): Promise<unknown> => sonarrFetch('PUT', path, body);
+export const sonarrDelete = (path: string, body?: unknown): Promise<unknown> => sonarrFetch('DELETE', path, body);
