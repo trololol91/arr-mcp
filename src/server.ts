@@ -12,7 +12,8 @@ import {sonarrTools} from './tools/sonarr.js';
 import {radarrTools} from './tools/radarr.js';
 import {qbtTools} from './tools/qbittorrent.js';
 import {serrTools, trimDiscoverPage} from './tools/seerr.js';
-import {anilistTools} from './tools/anilist.js';
+import {anilistTools, fetchAnilistUI} from './tools/anilist.js';
+import type {AnilistMedia} from './tools/anilist.js';
 import type {ToolInputSchema, ToolModule} from './tools/types.js';
 
 export const ALL_TOOLS: ToolModule[] = [
@@ -23,7 +24,7 @@ export const ALL_TOOLS: ToolModule[] = [
     ...anilistTools,
 ];
 
-export const TOOL_COUNT = ALL_TOOLS.length + 6; // +2 release browsers, +4 seerr discover
+export const TOOL_COUNT = ALL_TOOLS.length + 10; // +2 release browsers, +4 seerr discover, +4 anilist
 
 function toZodShape(schema: ToolInputSchema): Record<string, z.ZodTypeAny> {
     const required = new Set(schema.required ?? []);
@@ -72,6 +73,21 @@ export const createMcpServer = (): McpServer => {
     const sonarrHtml = readFileSync(join(uiDir, 'sonarr-releases', 'index.html'), 'utf-8');
     const radarrHtml = readFileSync(join(uiDir, 'radarr-releases', 'index.html'), 'utf-8');
     const serrDiscoverHtml = readFileSync(join(uiDir, 'seerr-discover', 'index.html'), 'utf-8');
+    const anilistHtml = readFileSync(join(uiDir, 'anilist', 'index.html'), 'utf-8');
+
+    const trimAnilist = (m: AnilistMedia) => ({
+        id: m.anilistId,
+        ro: m.title.romaji,
+        en: m.title.english ?? null,
+        ep: m.episodes ?? null,
+        sc: m.score ?? null,
+        st: m.status,
+        ss: m.season ?? null,
+        ge: ((m.genres as string[]) ?? []).slice(0, 3),
+        su: m.studio ?? null,
+        dsc: m.description ? String(m.description).slice(0, 120) : null,
+        img: m.img ?? null,
+    });
 
     registerAppTool(server, 'sonarr_interactive_search_ui', {
         title: 'Sonarr Release Browser',
@@ -157,6 +173,43 @@ export const createMcpServer = (): McpServer => {
             return {content: [{type: 'text', text: JSON.stringify(trimDiscoverPage(raw, type))}]};
         });
     }
+
+    const anilistTypes: Record<string, {title: string; desc: string; schema: Record<string, z.ZodTypeAny>}> = {
+        trending:  {title: 'AniList Trending',  desc: 'Browse trending anime',          schema: {page: z.number().optional()}},
+        popular:   {title: 'AniList Popular',   desc: 'Browse all-time popular anime',  schema: {page: z.number().optional()}},
+        seasonal:  {title: 'AniList Seasonal',  desc: 'Browse current season anime',    schema: {page: z.number().optional(), season: z.string().optional().describe('WINTER/SPRING/SUMMER/FALL'), year: z.number().optional()}},
+        search:    {title: 'AniList Search',    desc: 'Search anime on AniList',        schema: {query: z.string().describe('Anime title')}},
+    };
+
+    for (const [type, cfg] of Object.entries(anilistTypes)) {
+        registerAppTool(server, `anilist_${type}_ui`, {
+            title: cfg.title,
+            description: `${cfg.desc} — click Request to add via Seerr.`,
+            inputSchema: cfg.schema,
+            _meta: {ui: {resourceUri: 'ui://arr-mcp/anilist.html'}},
+        }, async (args) => {
+            const {hasNextPage, media} = await fetchAnilistUI(type, {
+                page: (args as {page?: number}).page ?? 1,
+                query: (args as {query?: string}).query,
+                season: (args as {season?: string}).season,
+                year: (args as {year?: number}).year,
+            });
+            const payload = {type, page: (args as {page?: number}).page ?? 1, hasNextPage, items: media.map(trimAnilist)};
+            return {content: [{type: 'text', text: JSON.stringify(payload)}]};
+        });
+    }
+
+    registerAppResource(server, 'AniList Browser', 'ui://arr-mcp/anilist.html',
+        {description: 'Browse trending, popular, and seasonal anime from AniList'},
+        async () => ({
+            contents: [{
+                uri: 'ui://arr-mcp/anilist.html',
+                mimeType: RESOURCE_MIME_TYPE,
+                text: anilistHtml,
+                _meta: {ui: {csp: {resourceDomains: ['https://s4.anilist.co']}}},
+            }],
+        })
+    );
 
     registerAppResource(server, 'Seerr Discovery', 'ui://arr-mcp/seerr-discover.html',
         {description: 'Browse trending, popular, and upcoming content in Seerr'},

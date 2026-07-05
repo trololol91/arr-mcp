@@ -207,6 +207,34 @@ export const serrTools: ToolModule[] = [
         }
     },
     {
+        name: 'seerr_request_by_title',
+        description: 'Search Seerr by title and request the first TV show match. Used by the AniList UI — tries romaji title first, then english as fallback.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                title: {type: 'string', description: 'Primary title to search (romaji)'},
+                altTitle: {type: 'string', description: 'Alternative title if primary not found (english)'},
+            },
+            required: ['title']
+        },
+        handle: async (args) => {
+            const titles = [args['title'] as string];
+            if (args['altTitle']) titles.push(args['altTitle'] as string);
+
+            for (const t of titles) {
+                const results = await serrGet(`/search?query=${encodeURIComponent(t)}&page=1`) as {results?: Array<Record<string, unknown>>};
+                const tvResult = (results.results ?? []).find((r) => r['mediaType'] === 'tv');
+                if (tvResult) {
+                    const details = await serrGet(`/tv/${tvResult['id']}`) as {externalIds?: {tvdbId?: number}};
+                    const tvdbId = details.externalIds?.tvdbId;
+                    if (!tvdbId) continue;
+                    return serrPost('/request', {mediaType: 'tv', mediaId: tvResult['id'], tvdbId});
+                }
+            }
+            throw new Error(`"${args['title'] as string}" not found in Seerr`);
+        }
+    },
+    {
         name: 'seerr_discover_page',
         description: 'Fetch a page of discover results for the Seerr discovery UI — used for pagination. type: trending, popular_movies, popular_tv, upcoming.',
         inputSchema: {

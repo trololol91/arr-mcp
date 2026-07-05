@@ -12,15 +12,15 @@ const MEDIA_FIELDS = `
     status
     genres
     averageScore
-    meanScore
-    popularity
     description(asHtml: false)
     studios(isMain: true) { nodes { name } }
+    coverImage { large }
 `;
 
 const PAGE_QUERY = (mediaFilter: string) => `
     query ($page: Int, $perPage: Int) {
         Page(page: $page, perPage: $perPage) {
+            pageInfo { hasNextPage }
             media(${mediaFilter}, type: ANIME, isAdult: false) {
                 ${MEDIA_FIELDS}
             }
@@ -28,21 +28,83 @@ const PAGE_QUERY = (mediaFilter: string) => `
     }
 `;
 
+const SEASONAL_QUERY = `
+    query ($season: MediaSeason, $year: Int, $page: Int, $perPage: Int) {
+        Page(page: $page, perPage: $perPage) {
+            pageInfo { hasNextPage }
+            media(season: $season, seasonYear: $year, type: ANIME, sort: POPULARITY_DESC, isAdult: false) {
+                ${MEDIA_FIELDS}
+            }
+        }
+    }
+`;
+
+const SEARCH_SIMPLE_QUERY = `
+    query ($search: String, $page: Int, $perPage: Int) {
+        Page(page: $page, perPage: $perPage) {
+            pageInfo { hasNextPage }
+            media(search: $search, type: ANIME, isAdult: false) {
+                ${MEDIA_FIELDS}
+            }
+        }
+    }
+`;
+
+type PageResponse = {Page: {pageInfo: {hasNextPage: boolean}; media: Record<string, unknown>[]}};
+
 const formatMedia = (m: Record<string, unknown>) => ({
     anilistId: m['id'],
     malId: m['idMal'],
     title: {
         romaji: (m['title'] as Record<string, string>)['romaji'],
-        english: (m['title'] as Record<string, string>)['english'],
+        english: (m['title'] as Record<string, string | null>)['english'] ?? null,
     },
-    episodes: m['episodes'],
+    episodes: m['episodes'] ?? null,
     season: m['season'] ? `${m['season'] as string} ${m['seasonYear'] as number}` : null,
     status: m['status'],
     genres: m['genres'],
-    score: m['averageScore'],
+    score: m['averageScore'] ?? null,
     studio: ((m['studios'] as {nodes: Array<{name: string}>})?.nodes?.[0])?.name ?? null,
     description: m['description'] ? String(m['description']).replace(/<[^>]+>/g, '').slice(0, 300) : null,
+    img: (m['coverImage'] as {large?: string} | undefined)?.large ?? null,
 });
+
+export type AnilistMedia = ReturnType<typeof formatMedia>;
+
+export const fetchAnilistUI = async (
+    type: string,
+    opts: {page?: number; season?: string; year?: number; query?: string}
+): Promise<{hasNextPage: boolean; media: AnilistMedia[]}> => {
+    const page = opts.page ?? 1;
+    let data: PageResponse;
+
+    switch (type) {
+        case 'trending':
+            data = await anilistQuery(PAGE_QUERY('sort: TRENDING_DESC'), {page, perPage: 10}) as PageResponse;
+            break;
+        case 'popular':
+            data = await anilistQuery(PAGE_QUERY('sort: POPULARITY_DESC'), {page, perPage: 10}) as PageResponse;
+            break;
+        case 'seasonal': {
+            const {season: defSeason, year: defYear} = currentSeason();
+            data = await anilistQuery(SEASONAL_QUERY, {
+                season: opts.season ?? defSeason,
+                year: opts.year ?? defYear,
+                page, perPage: 10,
+            }) as PageResponse;
+            break;
+        }
+        case 'search': {
+            if (!opts.query) throw new Error('query is required for type=search');
+            data = await anilistQuery(SEARCH_SIMPLE_QUERY, {search: opts.query, page, perPage: 10}) as PageResponse;
+            break;
+        }
+        default:
+            throw new Error(`Unknown AniList UI type: ${type}`);
+    }
+
+    return {hasNextPage: data.Page.pageInfo.hasNextPage, media: data.Page.media.map(formatMedia)};
+};
 
 export const anilistTools: ToolModule[] = [
     {
@@ -59,7 +121,7 @@ export const anilistTools: ToolModule[] = [
             const data = await anilistQuery(PAGE_QUERY('sort: TRENDING_DESC'), {
                 page: (args['page'] as number | undefined) ?? 1,
                 perPage: Math.min((args['perPage'] as number | undefined) ?? 20, 50),
-            }) as {Page: {media: Record<string, unknown>[]}};
+            }) as PageResponse;
             return data.Page.media.map(formatMedia);
         }
     },
@@ -77,7 +139,7 @@ export const anilistTools: ToolModule[] = [
             const data = await anilistQuery(PAGE_QUERY('sort: POPULARITY_DESC'), {
                 page: (args['page'] as number | undefined) ?? 1,
                 perPage: Math.min((args['perPage'] as number | undefined) ?? 20, 50),
-            }) as {Page: {media: Record<string, unknown>[]}};
+            }) as PageResponse;
             return data.Page.media.map(formatMedia);
         }
     },
@@ -95,20 +157,12 @@ export const anilistTools: ToolModule[] = [
         },
         handle: async (args) => {
             const {season: defaultSeason, year: defaultYear} = currentSeason();
-            const data = await anilistQuery(`
-                query ($season: MediaSeason, $year: Int, $page: Int, $perPage: Int) {
-                    Page(page: $page, perPage: $perPage) {
-                        media(season: $season, seasonYear: $year, type: ANIME, sort: POPULARITY_DESC, isAdult: false) {
-                            ${MEDIA_FIELDS}
-                        }
-                    }
-                }
-            `, {
+            const data = await anilistQuery(SEASONAL_QUERY, {
                 season: (args['season'] as string | undefined) ?? defaultSeason,
                 year: (args['year'] as number | undefined) ?? defaultYear,
                 page: (args['page'] as number | undefined) ?? 1,
                 perPage: Math.min((args['perPage'] as number | undefined) ?? 20, 50),
-            }) as {Page: {media: Record<string, unknown>[]}};
+            }) as PageResponse;
             return data.Page.media.map(formatMedia);
         }
     },
@@ -128,6 +182,7 @@ export const anilistTools: ToolModule[] = [
             const data = await anilistQuery(`
                 query ($search: String, $page: Int, $perPage: Int) {
                     Page(page: $page, perPage: $perPage) {
+                        pageInfo { hasNextPage }
                         media(search: $search, type: ANIME, isAdult: false) {
                             ${MEDIA_FIELDS}
                             recommendations(sort: RATING_DESC, perPage: 10) {
@@ -143,6 +198,7 @@ export const anilistTools: ToolModule[] = [
                                         genres
                                         averageScore
                                         studios(isMain: true) { nodes { name } }
+                                        coverImage { large }
                                     }
                                 }
                             }
@@ -153,15 +209,42 @@ export const anilistTools: ToolModule[] = [
                 search: args['query'],
                 page: (args['page'] as number | undefined) ?? 1,
                 perPage: Math.min((args['perPage'] as number | undefined) ?? 10, 50),
-            }) as {Page: {media: Record<string, unknown>[]}};
+            }) as PageResponse & {Page: {media: Array<Record<string, unknown> & {recommendations: {nodes: Array<{mediaRecommendation: Record<string, unknown>}>}}> }};
 
-            return data.Page.media.map((m) => ({
+            return (data.Page.media as Array<Record<string, unknown>>).map((m) => ({
                 ...formatMedia(m),
                 recommendations: ((m['recommendations'] as {nodes: Array<{mediaRecommendation: Record<string, unknown>}>})?.nodes ?? [])
                     .map((n) => n.mediaRecommendation)
                     .filter(Boolean)
                     .map(formatMedia),
             }));
+        }
+    },
+    {
+        name: 'anilist_ui_page',
+        description: 'Fetch a page of anime for the AniList browser UI — used for Load More pagination. type: trending, popular, seasonal, search.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                type: {type: 'string', description: 'trending, popular, seasonal, or search'},
+                page: {type: 'number', description: 'Page number'},
+                query: {type: 'string', description: 'Search query (required for type=search)'},
+                season: {type: 'string', description: 'Override season for type=seasonal (WINTER/SPRING/SUMMER/FALL)'},
+                year: {type: 'number', description: 'Override year for type=seasonal'},
+            },
+            required: ['type', 'page']
+        },
+        handle: async (args) => {
+            const {hasNextPage, media} = await fetchAnilistUI(
+                args['type'] as string,
+                {
+                    page: args['page'] as number,
+                    query: args['query'] as string | undefined,
+                    season: args['season'] as string | undefined,
+                    year: args['year'] as number | undefined,
+                }
+            );
+            return {type: args['type'], page: args['page'], hasNextPage, items: media};
         }
     },
 ];
