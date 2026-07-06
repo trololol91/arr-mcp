@@ -11,6 +11,7 @@ interface AnilistItem {
     ge: string[];
     su: string | null;
     dsc: string | null;
+    fdsc: string | null;
     img: string | null;
 }
 
@@ -81,7 +82,10 @@ function renderCards(items: AnilistItem[], container: HTMLElement): void {
             ? `<div class="genres">${item.ge.map((g) => `<span class="genre">${escHtml(g)}</span>`).join('')}</div>`
             : '';
 
-        const desc = item.dsc ? `<div class="overview">${escHtml(item.dsc)}</div>` : '';
+        const hasMore = item.fdsc && item.dsc && item.fdsc.length > item.dsc.length;
+        const desc = item.dsc
+            ? `<div class="overview">${escHtml(item.dsc)}${hasMore ? ' <button class="overview-more">···</button>' : ''}</div>`
+            : '';
 
         card.innerHTML = `
             ${cover}
@@ -97,6 +101,14 @@ function renderCards(items: AnilistItem[], container: HTMLElement): void {
                     <button class="req">Request</button>
                 </div>
             </div>`;
+
+        const moreBtn = card.querySelector<HTMLButtonElement>('button.overview-more');
+        if (moreBtn) {
+            moreBtn.addEventListener('click', () => {
+                const ovEl = moreBtn.closest('.overview')!;
+                ovEl.textContent = item.fdsc ?? item.dsc ?? '';
+            });
+        }
 
         const btn = card.querySelector<HTMLButtonElement>('button.req');
         if (btn) {
