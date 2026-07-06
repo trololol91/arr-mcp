@@ -12,8 +12,7 @@ import {sonarrTools} from './tools/sonarr.js';
 import {radarrTools} from './tools/radarr.js';
 import {qbtTools} from './tools/qbittorrent.js';
 import {serrTools, trimDiscoverPage, applyBlocklistFilter} from './tools/seerr.js';
-import {anilistTools, fetchAnilistUI} from './tools/anilist.js';
-import type {AnilistMedia} from './tools/anilist.js';
+import {anilistTools, fetchAnilistUI, trimAnilistItem} from './tools/anilist.js';
 import type {ToolInputSchema, ToolModule} from './tools/types.js';
 
 export const ALL_TOOLS: ToolModule[] = [
@@ -75,19 +74,7 @@ export const createMcpServer = (): McpServer => {
     const serrDiscoverHtml = readFileSync(join(uiDir, 'seerr-discover', 'index.html'), 'utf-8');
     const anilistHtml = readFileSync(join(uiDir, 'anilist', 'index.html'), 'utf-8');
 
-    const trimAnilist = (m: AnilistMedia) => ({
-        id: m.anilistId,
-        ro: m.title.romaji,
-        en: m.title.english ?? null,
-        ep: m.episodes ?? null,
-        sc: m.score ?? null,
-        st: m.status,
-        ss: m.season ?? null,
-        ge: ((m.genres as string[]) ?? []).slice(0, 3),
-        su: m.studio ?? null,
-        dsc: m.description ? String(m.description).slice(0, 120) : null,
-        img: m.img ?? null,
-    });
+    const trimAnilist = trimAnilistItem;
 
     registerAppTool(server, 'sonarr_interactive_search_ui', {
         title: 'Sonarr Release Browser',

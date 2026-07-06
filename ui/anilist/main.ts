@@ -155,15 +155,18 @@ async function refetchWithSort(): Promise<void> {
                 ...(currentYear ? {year: currentYear} : {}),
             },
         });
-        const block = (result as {content?: Array<{text?: string}>}).content?.[0];
+        const res = result as {content?: Array<{text?: string}>; isError?: boolean};
+        const block = res.content?.[0];
+        if (res.isError) throw new Error(block?.text ?? 'Tool error');
         const data = JSON.parse(block?.text ?? '{}') as PageData;
         currentPage = data.page;
         hasNextPage = data.hasNextPage;
         allItems = data.items;
         renderAll();
         updateFooter();
-    } catch {
-        if (grid) grid.innerHTML = '<div style="color:var(--error)">Failed to load</div>';
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (grid) grid.innerHTML = `<div style="color:var(--error)">Failed: ${escHtml(msg)}</div>`;
     }
 }
 
@@ -216,7 +219,9 @@ async function loadMore(): Promise<void> {
                 ...(currentYear ? {year: currentYear} : {}),
             },
         });
-        const block = (result as {content?: Array<{text?: string}>}).content?.[0];
+        const res = result as {content?: Array<{text?: string}>; isError?: boolean};
+        const block = res.content?.[0];
+        if (res.isError) throw new Error(block?.text ?? 'Tool error');
         const data = JSON.parse(block?.text ?? '{}') as PageData;
         currentPage = data.page;
         hasNextPage = data.hasNextPage;

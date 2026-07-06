@@ -79,6 +79,20 @@ const formatMedia = (m: Record<string, unknown>) => ({
 
 export type AnilistMedia = ReturnType<typeof formatMedia>;
 
+export const trimAnilistItem = (m: AnilistMedia) => ({
+    id: m.anilistId,
+    ro: m.title.romaji,
+    en: m.title.english ?? null,
+    ep: m.episodes ?? null,
+    sc: m.score ?? null,
+    st: m.status,
+    ss: m.season ?? null,
+    ge: ((m.genres as string[]) ?? []).slice(0, 3),
+    su: m.studio ?? null,
+    dsc: m.description ? String(m.description).slice(0, 120) : null,
+    img: m.img ?? null,
+});
+
 export const fetchAnilistUI = async (
     type: string,
     opts: {page?: number; season?: string; year?: number; query?: string; sort?: string}
@@ -258,7 +272,7 @@ export const anilistTools: ToolModule[] = [
                     sort: args['sort'] as string | undefined,
                 }
             );
-            return {type: args['type'], page: args['page'], hasNextPage, items: media};
+            return {type: args['type'], page: args['page'], hasNextPage, items: media.map(trimAnilistItem)};
         }
     },
 ];
