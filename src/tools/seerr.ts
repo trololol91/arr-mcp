@@ -68,9 +68,7 @@ export const serrTools: ToolModule[] = [
                 mediaId: args['tmdbId'],
                 tvdbId: args['tvdbId']
             };
-            if (args['seasons'] !== undefined) {
-                body['seasons'] = args['seasons'];
-            }
+            body['seasons'] = args['seasons'] !== undefined ? args['seasons'] : 'all';
             return serrPost('/request', body);
         }
     },
@@ -238,7 +236,7 @@ export const serrTools: ToolModule[] = [
             const details = await serrGet(`/tv/${args['tmdbId']}`) as {externalIds?: {tvdbId?: number}};
             const tvdbId = details.externalIds?.tvdbId;
             if (!tvdbId) throw new Error('Could not resolve TVDB id for this TV show');
-            return serrPost('/request', {mediaType: 'tv', mediaId: args['tmdbId'], tvdbId});
+            return serrPost('/request', {mediaType: 'tv', mediaId: args['tmdbId'], tvdbId, seasons: 'all'});
         }
     },
     {
@@ -263,7 +261,7 @@ export const serrTools: ToolModule[] = [
                     const details = await serrGet(`/tv/${tvResult['id']}`) as {externalIds?: {tvdbId?: number}};
                     const tvdbId = details.externalIds?.tvdbId;
                     if (!tvdbId) continue;
-                    return serrPost('/request', {mediaType: 'tv', mediaId: tvResult['id'], tvdbId});
+                    return serrPost('/request', {mediaType: 'tv', mediaId: tvResult['id'], tvdbId, seasons: 'all'});
                 }
             }
             throw new Error(`"${args['title'] as string}" not found in Seerr`);
