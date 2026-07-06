@@ -138,6 +138,35 @@ function renderAll(): void {
     renderCards(sortItems(allItems), grid);
 }
 
+async function refetchWithSort(): Promise<void> {
+    allItems = [];
+    currentPage = 1;
+    if (grid) grid.innerHTML = '<div style="padding:8px 0;color:var(--text2)">Loading…</div>';
+    try {
+        await connectionReady;
+        const result = await app.callServerTool({
+            name: 'anilist_ui_page',
+            arguments: {
+                type: currentType,
+                page: 1,
+                sort: currentSort,
+                ...(currentQuery ? {query: currentQuery} : {}),
+                ...(currentSeason ? {season: currentSeason} : {}),
+                ...(currentYear ? {year: currentYear} : {}),
+            },
+        });
+        const block = (result as {content?: Array<{text?: string}>}).content?.[0];
+        const data = JSON.parse(block?.text ?? '{}') as PageData;
+        currentPage = data.page;
+        hasNextPage = data.hasNextPage;
+        allItems = data.items;
+        renderAll();
+        updateFooter();
+    } catch {
+        if (grid) grid.innerHTML = '<div style="color:var(--error)">Failed to load</div>';
+    }
+}
+
 function initGrid(): void {
     document.body.innerHTML = `
         <div id="sort-bar">
@@ -152,10 +181,11 @@ function initGrid(): void {
     grid = document.querySelector('.grid')!;
     document.querySelectorAll<HTMLButtonElement>('button.sort-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
+            if (btn.dataset['sort'] === currentSort) return;
             currentSort = btn.dataset['sort']!;
             document.querySelectorAll('button.sort-btn').forEach((b) => b.classList.remove('active'));
             btn.classList.add('active');
-            renderAll();
+            void refetchWithSort();
         });
     });
 }
@@ -180,6 +210,7 @@ async function loadMore(): Promise<void> {
             arguments: {
                 type: currentType,
                 page: currentPage + 1,
+                sort: currentSort,
                 ...(currentQuery ? {query: currentQuery} : {}),
                 ...(currentSeason ? {season: currentSeason} : {}),
                 ...(currentYear ? {year: currentYear} : {}),

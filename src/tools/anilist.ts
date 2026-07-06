@@ -17,11 +17,19 @@ const MEDIA_FIELDS = `
     coverImage { large }
 `;
 
-const PAGE_QUERY = (mediaFilter: string) => `
-    query ($page: Int, $perPage: Int) {
+const SORT_MAP: Record<string, string> = {
+    'score-desc': 'SCORE_DESC',
+    'score-asc': 'SCORE_ASC',
+    'title': 'TITLE_ROMAJI',
+    'ep-desc': 'EPISODES_DESC',
+};
+const toGqlSort = (sort?: string): string => SORT_MAP[sort ?? 'score-desc'] ?? 'SCORE_DESC';
+
+const PAGE_QUERY = (extraFilter = '') => `
+    query ($page: Int, $perPage: Int, $sort: [MediaSort]) {
         Page(page: $page, perPage: $perPage) {
             pageInfo { hasNextPage }
-            media(${mediaFilter}, type: ANIME, isAdult: false) {
+            media(${extraFilter}sort: $sort, type: ANIME, isAdult: false) {
                 ${MEDIA_FIELDS}
             }
         }
@@ -29,10 +37,10 @@ const PAGE_QUERY = (mediaFilter: string) => `
 `;
 
 const SEASONAL_QUERY = `
-    query ($season: MediaSeason, $year: Int, $page: Int, $perPage: Int) {
+    query ($season: MediaSeason, $year: Int, $page: Int, $perPage: Int, $sort: [MediaSort]) {
         Page(page: $page, perPage: $perPage) {
             pageInfo { hasNextPage }
-            media(season: $season, seasonYear: $year, type: ANIME, sort: POPULARITY_DESC, isAdult: false) {
+            media(season: $season, seasonYear: $year, type: ANIME, sort: $sort, isAdult: false) {
                 ${MEDIA_FIELDS}
             }
         }
@@ -40,10 +48,10 @@ const SEASONAL_QUERY = `
 `;
 
 const SEARCH_SIMPLE_QUERY = `
-    query ($search: String, $page: Int, $perPage: Int) {
+    query ($search: String, $page: Int, $perPage: Int, $sort: [MediaSort]) {
         Page(page: $page, perPage: $perPage) {
             pageInfo { hasNextPage }
-            media(search: $search, type: ANIME, isAdult: false) {
+            media(search: $search, type: ANIME, sort: $sort, isAdult: false) {
                 ${MEDIA_FIELDS}
             }
         }
@@ -73,30 +81,31 @@ export type AnilistMedia = ReturnType<typeof formatMedia>;
 
 export const fetchAnilistUI = async (
     type: string,
-    opts: {page?: number; season?: string; year?: number; query?: string}
+    opts: {page?: number; season?: string; year?: number; query?: string; sort?: string}
 ): Promise<{hasNextPage: boolean; media: AnilistMedia[]}> => {
     const page = opts.page ?? 1;
+    const sort = [toGqlSort(opts.sort)];
     let data: PageResponse;
 
     switch (type) {
         case 'trending':
-            data = await anilistQuery(PAGE_QUERY('sort: TRENDING_DESC'), {page, perPage: 10}) as PageResponse;
+            data = await anilistQuery(PAGE_QUERY(), {page, perPage: 10, sort}) as PageResponse;
             break;
         case 'popular':
-            data = await anilistQuery(PAGE_QUERY('sort: POPULARITY_DESC'), {page, perPage: 10}) as PageResponse;
+            data = await anilistQuery(PAGE_QUERY(), {page, perPage: 10, sort}) as PageResponse;
             break;
         case 'seasonal': {
             const {season: defSeason, year: defYear} = currentSeason();
             data = await anilistQuery(SEASONAL_QUERY, {
                 season: opts.season ?? defSeason,
                 year: opts.year ?? defYear,
-                page, perPage: 10,
+                page, perPage: 10, sort,
             }) as PageResponse;
             break;
         }
         case 'search': {
             if (!opts.query) throw new Error('query is required for type=search');
-            data = await anilistQuery(SEARCH_SIMPLE_QUERY, {search: opts.query, page, perPage: 10}) as PageResponse;
+            data = await anilistQuery(SEARCH_SIMPLE_QUERY, {search: opts.query, page, perPage: 10, sort}) as PageResponse;
             break;
         }
         default:
@@ -118,9 +127,10 @@ export const anilistTools: ToolModule[] = [
             }
         },
         handle: async (args) => {
-            const data = await anilistQuery(PAGE_QUERY('sort: TRENDING_DESC'), {
+            const data = await anilistQuery(PAGE_QUERY(), {
                 page: (args['page'] as number | undefined) ?? 1,
                 perPage: Math.min((args['perPage'] as number | undefined) ?? 20, 50),
+                sort: ['TRENDING_DESC'],
             }) as PageResponse;
             return data.Page.media.map(formatMedia);
         }
@@ -136,9 +146,10 @@ export const anilistTools: ToolModule[] = [
             }
         },
         handle: async (args) => {
-            const data = await anilistQuery(PAGE_QUERY('sort: POPULARITY_DESC'), {
+            const data = await anilistQuery(PAGE_QUERY(), {
                 page: (args['page'] as number | undefined) ?? 1,
                 perPage: Math.min((args['perPage'] as number | undefined) ?? 20, 50),
+                sort: ['POPULARITY_DESC'],
             }) as PageResponse;
             return data.Page.media.map(formatMedia);
         }
@@ -162,6 +173,7 @@ export const anilistTools: ToolModule[] = [
                 year: (args['year'] as number | undefined) ?? defaultYear,
                 page: (args['page'] as number | undefined) ?? 1,
                 perPage: Math.min((args['perPage'] as number | undefined) ?? 20, 50),
+                sort: ['POPULARITY_DESC'],
             }) as PageResponse;
             return data.Page.media.map(formatMedia);
         }
@@ -231,6 +243,7 @@ export const anilistTools: ToolModule[] = [
                 query: {type: 'string', description: 'Search query (required for type=search)'},
                 season: {type: 'string', description: 'Override season for type=seasonal (WINTER/SPRING/SUMMER/FALL)'},
                 year: {type: 'number', description: 'Override year for type=seasonal'},
+                sort: {type: 'string', description: 'Sort order: score-desc (default), score-asc, title, ep-desc'},
             },
             required: ['type', 'page']
         },
@@ -242,6 +255,7 @@ export const anilistTools: ToolModule[] = [
                     query: args['query'] as string | undefined,
                     season: args['season'] as string | undefined,
                     year: args['year'] as number | undefined,
+                    sort: args['sort'] as string | undefined,
                 }
             );
             return {type: args['type'], page: args['page'], hasNextPage, items: media};
