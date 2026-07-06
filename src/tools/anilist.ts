@@ -19,7 +19,7 @@ const MEDIA_FIELDS = `
 
 const SORT_MAP: Record<string, string> = {
     'score-desc': 'SCORE_DESC',
-    'score-asc': 'SCORE_ASC',
+    'score-asc': 'SCORE',
     'title': 'TITLE_ROMAJI',
     'ep-desc': 'EPISODES_DESC',
 };
