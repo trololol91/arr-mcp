@@ -35,8 +35,7 @@
     #loading, #error { padding: 8px 0; }
     #error { color: var(--error); }
     #loading { color: var(--text2); }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    @media (max-width: 480px) { .grid { grid-template-columns: 1fr; } }
+    .grid { display: flex; flex-direction: column; gap: 10px; }
     .card { display: flex; gap: 10px; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; }
     .cover { flex-shrink: 0; width: 56px; height: 80px; object-fit: cover; border-radius: 4px; background: var(--border); }
     .cover-placeholder { flex-shrink: 0; width: 56px; height: 80px; border-radius: 4px; background: var(--border); display: flex; align-items: center; justify-content: center; color: var(--text2); font-size: 18px; }
