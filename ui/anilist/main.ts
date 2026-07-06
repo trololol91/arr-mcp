@@ -28,6 +28,21 @@ let currentQuery: string | undefined;
 let currentSeason: string | undefined;
 let currentYear: number | undefined;
 let grid: HTMLElement | null = null;
+let allItems: AnilistItem[] = [];
+let currentSort = 'score-desc';
+
+type SortKey = 'score-desc' | 'score-asc' | 'title' | 'ep-desc';
+
+function sortItems(items: AnilistItem[]): AnilistItem[] {
+    return [...items].sort((a, b) => {
+        switch (currentSort as SortKey) {
+            case 'score-asc': return (a.sc ?? -1) - (b.sc ?? -1);
+            case 'title': return (a.en || a.ro).localeCompare(b.en || b.ro);
+            case 'ep-desc': return (b.ep ?? -1) - (a.ep ?? -1);
+            default: return (b.sc ?? -1) - (a.sc ?? -1); // score-desc
+        }
+    });
+}
 
 function escHtml(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -117,9 +132,32 @@ async function handleRequest(item: AnilistItem, btn: HTMLButtonElement): Promise
     }
 }
 
+function renderAll(): void {
+    if (!grid) return;
+    grid.innerHTML = '';
+    renderCards(sortItems(allItems), grid);
+}
+
 function initGrid(): void {
-    document.body.innerHTML = '<div class="grid"></div><div id="footer"></div>';
+    document.body.innerHTML = `
+        <div id="sort-bar">
+            <span class="sort-label">Sort:</span>
+            <button class="sort-btn${currentSort === 'score-desc' ? ' active' : ''}" data-sort="score-desc">Score ↓</button>
+            <button class="sort-btn${currentSort === 'score-asc' ? ' active' : ''}" data-sort="score-asc">Score ↑</button>
+            <button class="sort-btn${currentSort === 'title' ? ' active' : ''}" data-sort="title">Title</button>
+            <button class="sort-btn${currentSort === 'ep-desc' ? ' active' : ''}" data-sort="ep-desc">Episodes ↓</button>
+        </div>
+        <div class="grid"></div>
+        <div id="footer"></div>`;
     grid = document.querySelector('.grid')!;
+    document.querySelectorAll<HTMLButtonElement>('button.sort-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            currentSort = btn.dataset['sort']!;
+            document.querySelectorAll('button.sort-btn').forEach((b) => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderAll();
+        });
+    });
 }
 
 function updateFooter(): void {
@@ -151,7 +189,8 @@ async function loadMore(): Promise<void> {
         const data = JSON.parse(block?.text ?? '{}') as PageData;
         currentPage = data.page;
         hasNextPage = data.hasNextPage;
-        renderCards(data.items, grid!);
+        allItems.push(...data.items);
+        renderAll();
         updateFooter();
     } catch {
         if (btn) { btn.disabled = false; btn.textContent = 'Load more'; }
@@ -176,8 +215,9 @@ app.ontoolresult = (params) => {
         currentType = data.type;
         currentPage = data.page;
         hasNextPage = data.hasNextPage;
+        allItems = data.items;
         initGrid();
-        renderCards(data.items, grid!);
+        renderAll();
         updateFooter();
     } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);

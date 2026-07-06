@@ -61,6 +61,11 @@
     button.req:disabled { opacity: 0.5; cursor: default; }
     .req-ok { color: var(--success); font-size: 11px; }
     .req-err { color: var(--error); font-size: 11px; }
+    #sort-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+    .sort-label { color: var(--text2); font-size: 11px; }
+    button.sort-btn { background: none; border: 1px solid var(--border); border-radius: var(--radius); padding: 2px 8px; cursor: pointer; font-size: 11px; color: var(--text2); }
+    button.sort-btn:hover { background: var(--border); }
+    button.sort-btn.active { background: var(--accent); color: var(--btn-text); border-color: var(--accent); }
     #footer { margin-top: 12px; text-align: center; }
     #load-more { background: var(--bg2); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 16px; cursor: pointer; font-size: 12px; }
     #load-more:hover { background: var(--border); }
