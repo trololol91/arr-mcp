@@ -89,8 +89,7 @@ export const trimAnilistItem = (m: AnilistMedia) => ({
     ss: m.season ?? null,
     ge: ((m.genres as string[]) ?? []).slice(0, 3),
     su: m.studio ?? null,
-    dsc: m.description ? String(m.description).slice(0, 120) : null,
-    fdsc: m.description ?? null,
+    dsc: m.description ?? null,
     img: m.img ?? null,
 });
 
