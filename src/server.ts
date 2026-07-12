@@ -77,7 +77,7 @@ export const createMcpServer = (): McpServer => {
     const uiDir = join(dirname(fileURLToPath(import.meta.url)), '../dist/ui');
     const sonarrHtml = readFileSync(join(uiDir, 'sonarr-releases', 'index.html'), 'utf-8');
     const radarrHtml = readFileSync(join(uiDir, 'radarr-releases', 'index.html'), 'utf-8');
-    const serrDiscoverHtml = readFileSync(join(uiDir, 'seerr-discover', 'index.html'), 'utf-8');
+    const tmdbDiscoverHtml = readFileSync(join(uiDir, 'tmdb-discover', 'index.html'), 'utf-8');
     const anilistHtml = readFileSync(join(uiDir, 'anilist', 'index.html'), 'utf-8');
 
     const trimAnilist = trimAnilistItem;
@@ -152,7 +152,7 @@ export const createMcpServer = (): McpServer => {
             title: `Seerr ${title}`,
             description: `Browse ${title} — click Request to add to your library.`,
             inputSchema: {page: z.number().optional().describe('Page number (default 1)')},
-            _meta: {ui: {resourceUri: 'ui://arr-mcp/seerr-discover.html'}},
+            _meta: {ui: {resourceUri: 'ui://arr-mcp/tmdb-discover.html'}},
         }, async ({page}) => {
             const data = await fetchTmdbDiscoverPage(type, page ?? 1);
             return {content: [{type: 'text', text: JSON.stringify(data)}]};
@@ -196,13 +196,13 @@ export const createMcpServer = (): McpServer => {
         })
     );
 
-    registerAppResource(server, 'Seerr Discovery', 'ui://arr-mcp/seerr-discover.html',
-        {description: 'Browse trending, popular, and upcoming content in Seerr'},
+    registerAppResource(server, 'TMDB Discovery', 'ui://arr-mcp/tmdb-discover.html',
+        {description: 'Browse trending, popular, and upcoming content from TMDB'},
         async () => ({
             contents: [{
-                uri: 'ui://arr-mcp/seerr-discover.html',
+                uri: 'ui://arr-mcp/tmdb-discover.html',
                 mimeType: RESOURCE_MIME_TYPE,
-                text: serrDiscoverHtml,
+                text: tmdbDiscoverHtml,
                 _meta: {ui: {csp: {resourceDomains: ['https://image.tmdb.org']}}},
             }],
         })

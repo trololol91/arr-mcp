@@ -2,7 +2,7 @@ import {tmdbGet, resolveGenreIds, resolveGenreNames} from '../services/tmdb.js';
 import {serrGet} from '../services/seerr.js';
 import type {ToolModule} from './types.js';
 
-// --- Seerr discover UI helpers ---
+// --- TMDB discover UI helpers ---
 
 const TMDB_IMG = 'https://image.tmdb.org/t/p/w342';
 
@@ -138,7 +138,7 @@ const trimTvResult = async (r: TmdbRawResult): Promise<Record<string, unknown>> 
 export const tmdbTools: ToolModule[] = [
     {
         name: 'tmdb_discover_page',
-        description: 'Fetch a page of discover results for the Seerr discovery UI — used for Load More pagination. type: trending, popular_movies, popular_tv, upcoming.',
+        description: 'Fetch a page of TMDB discover results for the discovery UI — used for Load More pagination. type: trending, popular_movies, popular_tv, upcoming.',
         inputSchema: {
             type: 'object',
             properties: {
