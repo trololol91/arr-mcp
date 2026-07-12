@@ -81,7 +81,11 @@ function renderCards(items: AnilistItem[], container: HTMLElement): void {
             ? `<div class="genres">${item.ge.map((g) => `<span class="genre">${escHtml(g)}</span>`).join('')}</div>`
             : '';
 
-        const desc = item.dsc ? `<div class="overview">${escHtml(item.dsc)}</div>` : '';
+        const descText = item.dsc ?? '';
+        const descTruncated = descText.length > 150;
+        const desc = descText
+            ? `<div class="overview">${escHtml(descTruncated ? descText.slice(0, 150) : descText)}${descTruncated ? ' <button class="overview-more">···</button>' : ''}</div>`
+            : '';
 
         card.innerHTML = `
             ${cover}
@@ -98,12 +102,33 @@ function renderCards(items: AnilistItem[], container: HTMLElement): void {
                 </div>
             </div>`;
 
+        const moreBtn = card.querySelector<HTMLButtonElement>('button.overview-more');
+        if (moreBtn) moreBtn.addEventListener('click', () => void handleExpandDescription(item, moreBtn));
+
         const btn = card.querySelector<HTMLButtonElement>('button.req');
         if (btn) {
             btn.addEventListener('click', () => void handleRequest(item, btn));
         }
 
         container.appendChild(card);
+    }
+}
+
+async function handleExpandDescription(item: AnilistItem, btn: HTMLButtonElement): Promise<void> {
+    btn.textContent = '…';
+    btn.disabled = true;
+    try {
+        await connectionReady;
+        const result = await app.callServerTool({
+            name: 'anilist_get_description',
+            arguments: {id: item.id},
+        });
+        const block = (result as {content?: Array<{text?: string}>}).content?.[0];
+        const ovEl = btn.closest('.overview')!;
+        ovEl.textContent = block?.text ?? '';
+    } catch {
+        btn.textContent = '···';
+        btn.disabled = false;
     }
 }
 

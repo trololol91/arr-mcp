@@ -247,6 +247,23 @@ export const anilistTools: ToolModule[] = [
         }
     },
     {
+        name: 'anilist_get_description',
+        description: 'Get the full description for an anime by AniList ID. Used by the browser UI to expand truncated descriptions.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                id: {type: 'number', description: 'AniList media ID (id field from search results)'}
+            },
+            required: ['id']
+        },
+        handle: async (args) => {
+            const data = await anilistQuery(`
+                query ($id: Int) { Media(id: $id) { description(asHtml: false) } }
+            `, {id: args['id']}) as {Media: {description?: string | null}};
+            return (data.Media.description ?? '').replace(/<[^>]+>/g, '');
+        }
+    },
+    {
         name: 'anilist_ui_page',
         description: 'Fetch a page of anime for the AniList browser UI — used for Load More pagination. type: trending, popular, seasonal, search.',
         inputSchema: {
