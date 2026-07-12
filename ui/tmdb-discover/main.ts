@@ -168,6 +168,7 @@ async function handleRequest(item: DiscoverItem, btn: HTMLButtonElement): Promis
 let currentType = '';
 let currentPage = 1;
 let totalPages = 1;
+let currentFilters: Record<string, unknown> = {};
 let grid: HTMLElement | null = null;
 
 function initGrid(): void {
@@ -192,7 +193,7 @@ async function loadMore(): Promise<void> {
         await connectionReady;
         const result = await app.callServerTool({
             name: 'tmdb_discover_page',
-            arguments: {type: currentType, page: currentPage + 1},
+            arguments: {type: currentType, page: currentPage + 1, ...currentFilters},
         });
         const block = (result as {content?: Array<{text?: string}>}).content?.[0];
         const data = JSON.parse(block?.text ?? '{}') as PageData;
@@ -205,10 +206,13 @@ async function loadMore(): Promise<void> {
     }
 }
 
-const app = new App({name: 'seerr-discover', version: '1.0.0'}, {});
+const app = new App({name: 'tmdb-discover', version: '1.0.0'}, {});
 let connectionReady: Promise<void>;
 
-app.ontoolinput = () => {
+app.ontoolinput = (params) => {
+    const args = params.arguments as Record<string, unknown> | undefined ?? {};
+    const {page: _page, ...filters} = args;
+    currentFilters = filters;
     document.body.innerHTML = '<div id="loading">Loading…</div>';
 };
 

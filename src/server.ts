@@ -13,6 +13,7 @@ import {qbtTools} from './tools/qbittorrent.js';
 import {serrTools} from './tools/seerr.js';
 import {anilistTools, fetchAnilistUI, trimAnilistItem} from './tools/anilist.js';
 import {tmdbTools, fetchTmdbDiscoverPage} from './tools/tmdb.js';
+import type {DiscoverFilters} from './tools/tmdb.js';
 import type {ToolInputSchema, ToolModule} from './tools/types.js';
 
 export const ALL_TOOLS: ToolModule[] = [
@@ -147,15 +148,33 @@ export const createMcpServer = (): McpServer => {
         upcoming: 'Upcoming Movies',
     };
 
+    const filterSchema = {
+        genres:           z.array(z.string()).optional().describe('Genre names to include, e.g. ["Action"]'),
+        exclude_genres:   z.array(z.string()).optional().describe('Genre names to exclude, e.g. ["Animation"]'),
+        countries:        z.array(z.string()).optional().describe('ISO 3166-1 country codes to include, e.g. ["US"]'),
+        exclude_countries:z.array(z.string()).optional().describe('ISO 3166-1 country codes to exclude, e.g. ["JP", "KR"]'),
+        min_rating:       z.number().optional().describe('Minimum vote average (0–10)'),
+        min_votes:        z.number().optional().describe('Minimum vote count'),
+        original_language:z.string().optional().describe('ISO 639-1 language code, e.g. en, ja'),
+        sort_by:          z.string().optional().describe('Sort order, e.g. popularity.desc, vote_average.desc'),
+        year:             z.number().optional().describe('Exact release year'),
+        year_gte:         z.number().optional().describe('Release year ≥ this'),
+        year_lte:         z.number().optional().describe('Release year ≤ this'),
+    };
+
     for (const [type, title] of Object.entries(discoverTitles)) {
+        const schema = type === 'trending'
+            ? {page: z.number().optional().describe('Page number (default 1)')}
+            : {page: z.number().optional().describe('Page number (default 1)'), ...filterSchema};
         registerAppTool(server, `tmdb_${type}_ui`, {
-            title: `Seerr ${title}`,
+            title: `TMDB ${title}`,
             description: `Browse ${title} — click Request to add to your library.`,
-            inputSchema: {page: z.number().optional().describe('Page number (default 1)')},
+            inputSchema: schema,
             _meta: {ui: {resourceUri: 'ui://arr-mcp/tmdb-discover.html'}},
-        }, async ({page}) => {
-            const data = await fetchTmdbDiscoverPage(type, page ?? 1);
-            return {content: [{type: 'text', text: JSON.stringify(data)}]};
+        }, async (args: Record<string, unknown>) => {
+            const {page, ...filters} = args as {page?: number} & DiscoverFilters;
+            const data = await fetchTmdbDiscoverPage(type, page ?? 1, filters);
+            return {content: [{type: 'text' as const, text: JSON.stringify(data)}]};
         });
     }
 

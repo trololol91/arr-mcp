@@ -21,11 +21,33 @@ export const buildStatusMap = async (): Promise<Map<number, number>> => {
     }
 };
 
-const TMDB_DISCOVER_CONFIGS: Record<string, {url: string; inferMt: (r: Record<string, unknown>) => 'm' | 't'}> = {
+export type DiscoverFilters = {
+    genres?: string[];
+    exclude_genres?: string[];
+    countries?: string[];
+    exclude_countries?: string[];
+    min_rating?: number;
+    min_votes?: number;
+    original_language?: string;
+    sort_by?: string;
+    year?: number;
+    year_gte?: number;
+    year_lte?: number;
+};
+
+type DiscoverConfig = {
+    url: string;
+    inferMt: (r: Record<string, unknown>) => 'm' | 't';
+    mediaType?: 'movie' | 'tv';
+    defaultSort?: string;
+    defaultMinVotes?: number;
+};
+
+const TMDB_DISCOVER_CONFIGS: Record<string, DiscoverConfig> = {
     trending:       {url: '/trending/all/week', inferMt: (r) => r['media_type'] === 'tv' ? 't' : 'm'},
-    popular_movies: {url: '/movie/popular',     inferMt: () => 'm'},
-    popular_tv:     {url: '/tv/popular',        inferMt: () => 't'},
-    upcoming:       {url: '/movie/upcoming',    inferMt: () => 'm'},
+    popular_movies: {url: '/discover/movie',    inferMt: () => 'm', mediaType: 'movie', defaultSort: 'popularity.desc'},
+    popular_tv:     {url: '/discover/tv',       inferMt: () => 't', mediaType: 'tv',    defaultSort: 'popularity.desc'},
+    upcoming:       {url: '/discover/movie',    inferMt: () => 'm', mediaType: 'movie', defaultSort: 'primary_release_date.asc', defaultMinVotes: 0},
 };
 
 const trimTmdbDiscoverPage = (
@@ -48,11 +70,45 @@ const trimTmdbDiscoverPage = (
     })),
 });
 
-export const fetchTmdbDiscoverPage = async (type: string, page: number) => {
+export const fetchTmdbDiscoverPage = async (type: string, page: number, filters: DiscoverFilters = {}) => {
     const cfg = TMDB_DISCOVER_CONFIGS[type];
     if (!cfg) throw new Error(`Unknown discover type: ${type}`);
+
+    const params: Record<string, string> = {page: String(page)};
+
+    if (cfg.mediaType) {
+        params['sort_by'] = filters.sort_by ?? cfg.defaultSort ?? 'popularity.desc';
+        params['vote_count.gte'] = String(filters.min_votes ?? cfg.defaultMinVotes ?? 50);
+        if (filters.min_rating) params['vote_average.gte'] = String(filters.min_rating);
+        if (filters.original_language) params['with_original_language'] = filters.original_language;
+
+        if (cfg.mediaType === 'movie') {
+            if (type === 'upcoming' && !filters.year_gte) {
+                params['primary_release_date.gte'] = new Date().toISOString().slice(0, 10);
+            }
+            if (filters.year) params['primary_release_year'] = String(filters.year);
+            if (filters.year_gte) params['primary_release_date.gte'] = `${filters.year_gte}-01-01`;
+            if (filters.year_lte) params['primary_release_date.lte'] = `${filters.year_lte}-12-31`;
+        } else {
+            if (filters.year) params['first_air_date_year'] = String(filters.year);
+            if (filters.year_gte) params['first_air_date.gte'] = `${filters.year_gte}-01-01`;
+            if (filters.year_lte) params['first_air_date.lte'] = `${filters.year_lte}-12-31`;
+        }
+
+        if (filters.genres?.length) {
+            const ids = await resolveGenreIds(cfg.mediaType, filters.genres);
+            if (ids.length) params['with_genres'] = ids.join(',');
+        }
+        if (filters.exclude_genres?.length) {
+            const ids = await resolveGenreIds(cfg.mediaType, filters.exclude_genres);
+            if (ids.length) params['without_genres'] = ids.join(',');
+        }
+        if (filters.countries?.length) params['with_origin_country'] = filters.countries.join(',');
+        if (filters.exclude_countries?.length) params['without_origin_country'] = filters.exclude_countries.join(',');
+    }
+
     const [raw, statusMap] = await Promise.all([
-        tmdbGet(cfg.url, {page: String(page)}) as Promise<TmdbDiscoverRaw>,
+        tmdbGet(cfg.url, params) as Promise<TmdbDiscoverRaw>,
         buildStatusMap(),
     ]);
     return trimTmdbDiscoverPage(raw, type, cfg.inferMt, statusMap);
@@ -144,10 +200,21 @@ export const tmdbTools: ToolModule[] = [
             properties: {
                 type: {type: 'string', description: 'trending, popular_movies, popular_tv, or upcoming'},
                 page: {type: 'number', description: 'Page number'},
+                genres: {type: 'array', items: {type: 'string'}, description: 'Genre names to include'},
+                exclude_genres: {type: 'array', items: {type: 'string'}, description: 'Genre names to exclude'},
+                countries: {type: 'array', items: {type: 'string'}, description: 'ISO 3166-1 country codes to include'},
+                exclude_countries: {type: 'array', items: {type: 'string'}, description: 'ISO 3166-1 country codes to exclude'},
+                min_rating: {type: 'number', description: 'Minimum vote average'},
+                min_votes: {type: 'number', description: 'Minimum vote count'},
+                original_language: {type: 'string', description: 'ISO 639-1 language code'},
+                sort_by: {type: 'string', description: 'Sort order'},
+                year: {type: 'number', description: 'Exact release year'},
+                year_gte: {type: 'number', description: 'Release year ≥ this'},
+                year_lte: {type: 'number', description: 'Release year ≤ this'},
             },
             required: ['type', 'page'],
         },
-        handle: async (args) => fetchTmdbDiscoverPage(args['type'] as string, args['page'] as number),
+        handle: async (args) => fetchTmdbDiscoverPage(args['type'] as string, args['page'] as number, args as DiscoverFilters),
     },
     {
         name: 'tmdb_discover_movie',
