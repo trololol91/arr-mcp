@@ -171,9 +171,81 @@ let totalPages = 1;
 let currentFilters: Record<string, unknown> = {};
 let grid: HTMLElement | null = null;
 
+const SORT_OPTIONS = [
+    {label: 'Popular', value: 'popularity.desc'},
+    {label: 'Top Rated', value: 'vote_average.desc'},
+    {label: 'Newest', value: 'primary_release_date.desc'},
+];
+
+function currentSortValue(): string {
+    return (currentFilters['sort_by'] as string | undefined) ?? 'popularity.desc';
+}
+
 function initGrid(): void {
-    document.body.innerHTML = '<div class="grid"></div><div id="footer"></div>';
+    const supportsFilters = currentType !== 'trending';
+    const sortBtns = SORT_OPTIONS.map((o) =>
+        `<button class="sort-btn${currentSortValue() === o.value ? ' active' : ''}" data-sort="${o.value}">${o.label}</button>`
+    ).join('');
+    const filterBar = supportsFilters ? `
+        <div id="filter-bar">
+            <span class="filter-label">Sort:</span>${sortBtns}
+            <span class="filter-label" style="margin-left:4px">Rating ≥</span>
+            <input id="f-rating" class="filter-input" type="number" min="0" max="10" step="0.5"
+                value="${currentFilters['min_rating'] ?? ''}" placeholder="—">
+            <span class="filter-label">Excl. genres</span>
+            <input id="f-genres" class="filter-input" type="text"
+                value="${((currentFilters['exclude_genres'] as string[] | undefined) ?? []).join(', ')}"
+                placeholder="Animation, Horror…">
+            <button id="f-apply">Apply</button>
+        </div>` : '';
+
+    document.body.innerHTML = `${filterBar}<div class="grid"></div><div id="footer"></div>`;
     grid = document.querySelector('.grid')!;
+
+    if (supportsFilters) {
+        document.querySelectorAll<HTMLButtonElement>('button.sort-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                if (btn.dataset['sort'] === currentSortValue()) return;
+                currentFilters['sort_by'] = btn.dataset['sort'];
+                document.querySelectorAll('button.sort-btn').forEach((b) => b.classList.remove('active'));
+                btn.classList.add('active');
+                void refetchFiltered();
+            });
+        });
+        document.getElementById('f-apply')!.addEventListener('click', () => {
+            const rating = parseFloat((document.getElementById('f-rating') as HTMLInputElement).value);
+            const genreText = (document.getElementById('f-genres') as HTMLInputElement).value.trim();
+            currentFilters['min_rating'] = isNaN(rating) ? undefined : rating;
+            currentFilters['exclude_genres'] = genreText
+                ? genreText.split(',').map((s) => s.trim()).filter(Boolean)
+                : undefined;
+            void refetchFiltered();
+        });
+    }
+}
+
+async function refetchFiltered(): Promise<void> {
+    if (!grid) return;
+    grid.innerHTML = '<div style="padding:8px 0;color:var(--text2)">Loading…</div>';
+    const footer = document.getElementById('footer');
+    if (footer) footer.innerHTML = '';
+    try {
+        await connectionReady;
+        const result = await app.callServerTool({
+            name: 'tmdb_discover_page',
+            arguments: {type: currentType, page: 1, ...currentFilters},
+        });
+        const res = result as {content?: Array<{text?: string}>; isError?: boolean};
+        if (res.isError) throw new Error(res.content?.[0]?.text ?? 'Tool error');
+        const data = JSON.parse(res.content?.[0]?.text ?? '{}') as PageData;
+        currentPage = data.page;
+        totalPages = data.totalPages;
+        grid!.innerHTML = '';
+        renderCards(data.items, grid!);
+        updateFooter();
+    } catch {
+        if (grid) grid.innerHTML = '<div style="color:var(--error)">Failed to load</div>';
+    }
 }
 
 function updateFooter(): void {
