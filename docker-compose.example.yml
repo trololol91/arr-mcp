@@ -27,6 +27,10 @@ services:
       # qBittorrent (no auth needed if using the built-in bypass)
       QBT_URL: http://qbittorrent:8080
 
+      # TMDB — required for tmdb_discover_movie and tmdb_discover_tv
+      # Free API key: https://www.themoviedb.org/settings/api
+      TMDB_API_KEY: your-tmdb-api-key
+
       # Optional — defaults to 3000
       # MCP_PORT: 3000
 
