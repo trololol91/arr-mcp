@@ -191,7 +191,7 @@ async function loadMore(): Promise<void> {
     try {
         await connectionReady;
         const result = await app.callServerTool({
-            name: 'seerr_discover_page',
+            name: 'tmdb_discover_page',
             arguments: {type: currentType, page: currentPage + 1},
         });
         const block = (result as {content?: Array<{text?: string}>}).content?.[0];

@@ -1,5 +1,62 @@
 import {tmdbGet, resolveGenreIds, resolveGenreNames} from '../services/tmdb.js';
+import {serrGet} from '../services/seerr.js';
 import type {ToolModule} from './types.js';
+
+// --- Seerr discover UI helpers ---
+
+const TMDB_IMG = 'https://image.tmdb.org/t/p/w342';
+
+type TmdbDiscoverRaw = {page: number; total_pages: number; results: Record<string, unknown>[]};
+
+export const buildStatusMap = async (): Promise<Map<number, number>> => {
+    try {
+        const media = await serrGet('/media?take=500&skip=0') as {results?: Array<{tmdbId?: number; status?: number}>};
+        return new Map(
+            (media.results ?? [])
+                .filter((m) => m.tmdbId != null)
+                .map((m) => [m.tmdbId!, m.status ?? 1])
+        );
+    } catch {
+        return new Map();
+    }
+};
+
+const TMDB_DISCOVER_CONFIGS: Record<string, {url: string; inferMt: (r: Record<string, unknown>) => 'm' | 't'}> = {
+    trending:       {url: '/trending/all/week', inferMt: (r) => r['media_type'] === 'tv' ? 't' : 'm'},
+    popular_movies: {url: '/movie/popular',     inferMt: () => 'm'},
+    popular_tv:     {url: '/tv/popular',        inferMt: () => 't'},
+    upcoming:       {url: '/movie/upcoming',    inferMt: () => 'm'},
+};
+
+const trimTmdbDiscoverPage = (
+    raw: TmdbDiscoverRaw,
+    type: string,
+    inferMt: (r: Record<string, unknown>) => 'm' | 't',
+    statusMap: Map<number, number>
+) => ({
+    type,
+    page: raw.page,
+    totalPages: raw.total_pages,
+    items: raw.results.slice(0, 10).map((r) => ({
+        mid: r['id'],
+        mt: inferMt(r),
+        ti: r['title'] ?? r['name'],
+        yr: new Date(String(r['release_date'] ?? r['first_air_date'] ?? '1970')).getFullYear(),
+        po: r['poster_path'] ? `${TMDB_IMG}${r['poster_path'] as string}` : null,
+        ov: r['overview'] ? String(r['overview']).slice(0, 150) : null,
+        st: statusMap.get(r['id'] as number) ?? null,
+    })),
+});
+
+export const fetchTmdbDiscoverPage = async (type: string, page: number) => {
+    const cfg = TMDB_DISCOVER_CONFIGS[type];
+    if (!cfg) throw new Error(`Unknown discover type: ${type}`);
+    const [raw, statusMap] = await Promise.all([
+        tmdbGet(cfg.url, {page: String(page)}) as Promise<TmdbDiscoverRaw>,
+        buildStatusMap(),
+    ]);
+    return trimTmdbDiscoverPage(raw, type, cfg.inferMt, statusMap);
+};
 
 type TmdbRawResult = Record<string, unknown>;
 type TmdbPage = {page: number; total_pages: number; results: TmdbRawResult[]};
@@ -63,6 +120,19 @@ const trimTvResult = async (r: TmdbRawResult): Promise<Record<string, unknown>> 
 });
 
 export const tmdbTools: ToolModule[] = [
+    {
+        name: 'tmdb_discover_page',
+        description: 'Fetch a page of discover results for the Seerr discovery UI — used for Load More pagination. type: trending, popular_movies, popular_tv, upcoming.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                type: {type: 'string', description: 'trending, popular_movies, popular_tv, or upcoming'},
+                page: {type: 'number', description: 'Page number'},
+            },
+            required: ['type', 'page'],
+        },
+        handle: async (args) => fetchTmdbDiscoverPage(args['type'] as string, args['page'] as number),
+    },
     {
         name: 'tmdb_discover_movie',
         description: 'Discover movies from TMDB with rich filtering — year, genre, rating, language, sort. Returns metadata only; use seerr_* tools to check availability or submit a request.',

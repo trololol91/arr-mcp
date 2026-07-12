@@ -7,13 +7,12 @@ import {join, dirname} from 'node:path';
 
 import {sonarrGet} from './services/sonarr.js';
 import {radarrGet} from './services/radarr.js';
-import {serrGet} from './services/seerr.js';
 import {sonarrTools} from './tools/sonarr.js';
 import {radarrTools} from './tools/radarr.js';
 import {qbtTools} from './tools/qbittorrent.js';
-import {serrTools, trimDiscoverPage, applyBlocklistFilter} from './tools/seerr.js';
+import {serrTools} from './tools/seerr.js';
 import {anilistTools, fetchAnilistUI, trimAnilistItem} from './tools/anilist.js';
-import {tmdbTools} from './tools/tmdb.js';
+import {tmdbTools, fetchTmdbDiscoverPage} from './tools/tmdb.js';
 import type {ToolInputSchema, ToolModule} from './tools/types.js';
 
 export const ALL_TOOLS: ToolModule[] = [
@@ -141,12 +140,6 @@ export const createMcpServer = (): McpServer => {
         })
     );
 
-    const discoverPaths: Record<string, string> = {
-        trending: '/discover/trending',
-        popular_movies: '/discover/movies',
-        popular_tv: '/discover/tv',
-        upcoming: '/discover/movies/upcoming',
-    };
     const discoverTitles: Record<string, string> = {
         trending: 'Trending',
         popular_movies: 'Popular Movies',
@@ -154,18 +147,15 @@ export const createMcpServer = (): McpServer => {
         upcoming: 'Upcoming Movies',
     };
 
-    for (const [type, path] of Object.entries(discoverPaths)) {
+    for (const [type, title] of Object.entries(discoverTitles)) {
         registerAppTool(server, `seerr_${type}_ui`, {
-            title: `Seerr ${discoverTitles[type]}`,
-            description: `Browse ${discoverTitles[type]} in Seerr — click Request to add to your library.`,
+            title: `Seerr ${title}`,
+            description: `Browse ${title} — click Request to add to your library.`,
             inputSchema: {page: z.number().optional().describe('Page number (default 1)')},
             _meta: {ui: {resourceUri: 'ui://arr-mcp/seerr-discover.html'}},
         }, async ({page}) => {
-            const raw = await serrGet(`${path}?page=${page ?? 1}`) as {
-                page: number; totalPages: number; results: Record<string, unknown>[];
-            };
-            const filtered = await applyBlocklistFilter(raw.results);
-            return {content: [{type: 'text', text: JSON.stringify(trimDiscoverPage({...raw, results: filtered}, type))}]};
+            const data = await fetchTmdbDiscoverPage(type, page ?? 1);
+            return {content: [{type: 'text', text: JSON.stringify(data)}]};
         });
     }
 
