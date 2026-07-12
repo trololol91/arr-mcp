@@ -13,6 +13,7 @@ import {radarrTools} from './tools/radarr.js';
 import {qbtTools} from './tools/qbittorrent.js';
 import {serrTools, trimDiscoverPage, applyBlocklistFilter} from './tools/seerr.js';
 import {anilistTools, fetchAnilistUI, trimAnilistItem} from './tools/anilist.js';
+import {tmdbTools} from './tools/tmdb.js';
 import type {ToolInputSchema, ToolModule} from './tools/types.js';
 
 export const ALL_TOOLS: ToolModule[] = [
@@ -21,6 +22,7 @@ export const ALL_TOOLS: ToolModule[] = [
     ...qbtTools,
     ...serrTools,
     ...anilistTools,
+    ...tmdbTools,
 ];
 
 export const TOOL_COUNT = ALL_TOOLS.length + 10; // +2 release browsers, +4 seerr discover, +4 anilist
@@ -37,6 +39,11 @@ function toZodShape(schema: ToolInputSchema): Record<string, z.ZodTypeAny> {
             case 'string':  zodType = z.string(); break;
             case 'number':  zodType = z.number(); break;
             case 'boolean': zodType = z.boolean(); break;
+            case 'array': {
+                const itemType = (prop['items'] as {type?: string} | undefined)?.type === 'number' ? z.number() : z.string();
+                zodType = z.array(itemType);
+                break;
+            }
             default:        zodType = z.unknown(); break;
         }
 
