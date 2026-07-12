@@ -80,6 +80,10 @@ const buildMovieParams = async (args: Record<string, unknown>): Promise<Record<s
         const ids = await resolveGenreIds('movie', args['exclude_genres'] as string[]);
         if (ids.length) p['without_genres'] = ids.join(',');
     }
+    if (Array.isArray(args['countries']) && (args['countries'] as string[]).length > 0)
+        p['with_origin_country'] = (args['countries'] as string[]).join(',');
+    if (Array.isArray(args['exclude_countries']) && (args['exclude_countries'] as string[]).length > 0)
+        p['without_origin_country'] = (args['exclude_countries'] as string[]).join(',');
     return p;
 };
 
@@ -102,6 +106,10 @@ const buildTvParams = async (args: Record<string, unknown>): Promise<Record<stri
         const ids = await resolveGenreIds('tv', args['exclude_genres'] as string[]);
         if (ids.length) p['without_genres'] = ids.join(',');
     }
+    if (Array.isArray(args['countries']) && (args['countries'] as string[]).length > 0)
+        p['with_origin_country'] = (args['countries'] as string[]).join(',');
+    if (Array.isArray(args['exclude_countries']) && (args['exclude_countries'] as string[]).length > 0)
+        p['without_origin_country'] = (args['exclude_countries'] as string[]).join(',');
     return p;
 };
 
@@ -152,6 +160,8 @@ export const tmdbTools: ToolModule[] = [
                 year_lte: {type: 'number', description: 'Release year ≤ this value'},
                 genres: {type: 'array', items: {type: 'string'}, description: 'Genre names to include, e.g. ["Action", "Animation"]'},
                 exclude_genres: {type: 'array', items: {type: 'string'}, description: 'Genre names to exclude, e.g. ["Animation"] to filter out anime/cartoons'},
+                countries: {type: 'array', items: {type: 'string'}, description: 'ISO 3166-1 country codes to include, e.g. ["US", "GB"]'},
+                exclude_countries: {type: 'array', items: {type: 'string'}, description: 'ISO 3166-1 country codes to exclude, e.g. ["JP", "KR"]'},
                 min_rating: {type: 'number', description: 'Minimum vote average (0–10)'},
                 min_votes: {type: 'number', description: 'Minimum vote count to filter low-sample outliers (default 50)'},
                 sort_by: {type: 'string', description: 'popularity.desc (default), popularity.asc, vote_average.desc, vote_average.asc, primary_release_date.desc, primary_release_date.asc, revenue.desc'},
@@ -178,6 +188,8 @@ export const tmdbTools: ToolModule[] = [
                 year_lte: {type: 'number', description: 'First air year ≤ this value'},
                 genres: {type: 'array', items: {type: 'string'}, description: 'Genre names to include, e.g. ["Drama", "Crime"]'},
                 exclude_genres: {type: 'array', items: {type: 'string'}, description: 'Genre names to exclude, e.g. ["Animation"] to filter out anime'},
+                countries: {type: 'array', items: {type: 'string'}, description: 'ISO 3166-1 country codes to include, e.g. ["US", "GB"]'},
+                exclude_countries: {type: 'array', items: {type: 'string'}, description: 'ISO 3166-1 country codes to exclude, e.g. ["JP", "KR"]'},
                 min_rating: {type: 'number', description: 'Minimum vote average (0–10)'},
                 min_votes: {type: 'number', description: 'Minimum vote count to filter low-sample outliers (default 50)'},
                 sort_by: {type: 'string', description: 'popularity.desc (default), popularity.asc, vote_average.desc, vote_average.asc, first_air_date.desc, first_air_date.asc'},
