@@ -148,7 +148,7 @@ export const createMcpServer = (): McpServer => {
     };
 
     for (const [type, title] of Object.entries(discoverTitles)) {
-        registerAppTool(server, `seerr_${type}_ui`, {
+        registerAppTool(server, `tmdb_${type}_ui`, {
             title: `Seerr ${title}`,
             description: `Browse ${title} — click Request to add to your library.`,
             inputSchema: {page: z.number().optional().describe('Page number (default 1)')},
