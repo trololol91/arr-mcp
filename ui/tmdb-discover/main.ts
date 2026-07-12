@@ -186,16 +186,25 @@ function initGrid(): void {
     const sortBtns = SORT_OPTIONS.map((o) =>
         `<button class="sort-btn${currentSortValue() === o.value ? ' active' : ''}" data-sort="${o.value}">${o.label}</button>`
     ).join('');
+    const strArr = (key: string) => ((currentFilters[key] as string[] | undefined) ?? []).join(', ');
     const filterBar = supportsFilters ? `
         <div id="filter-bar">
             <span class="filter-label">Sort:</span>${sortBtns}
             <span class="filter-label" style="margin-left:4px">Rating ≥</span>
             <input id="f-rating" class="filter-input" type="number" min="0" max="10" step="0.5"
                 value="${currentFilters['min_rating'] ?? ''}" placeholder="—">
+            <span class="filter-label">Year</span>
+            <input id="f-year" class="filter-input" type="number" min="1900" max="2099"
+                value="${currentFilters['year'] ?? ''}" placeholder="—" style="width:52px">
+            <span class="filter-label">Lang</span>
+            <input id="f-lang" class="filter-input" type="text"
+                value="${currentFilters['original_language'] ?? ''}" placeholder="en, ja…" style="width:44px">
             <span class="filter-label">Excl. genres</span>
             <input id="f-genres" class="filter-input" type="text"
-                value="${((currentFilters['exclude_genres'] as string[] | undefined) ?? []).join(', ')}"
-                placeholder="Animation, Horror…">
+                value="${strArr('exclude_genres')}" placeholder="Animation…">
+            <span class="filter-label">Excl. countries</span>
+            <input id="f-excl-countries" class="filter-input" type="text"
+                value="${strArr('exclude_countries')}" placeholder="JP, KR…" style="width:60px">
             <button id="f-apply">Apply</button>
         </div>` : '';
 
@@ -213,12 +222,15 @@ function initGrid(): void {
             });
         });
         document.getElementById('f-apply')!.addEventListener('click', () => {
-            const rating = parseFloat((document.getElementById('f-rating') as HTMLInputElement).value);
-            const genreText = (document.getElementById('f-genres') as HTMLInputElement).value.trim();
+            const val = (id: string) => (document.getElementById(id) as HTMLInputElement).value.trim();
+            const csvArr = (id: string) => val(id) ? val(id).split(',').map((s) => s.trim()).filter(Boolean) : undefined;
+            const rating = parseFloat(val('f-rating'));
+            const year = parseInt(val('f-year'), 10);
             currentFilters['min_rating'] = isNaN(rating) ? undefined : rating;
-            currentFilters['exclude_genres'] = genreText
-                ? genreText.split(',').map((s) => s.trim()).filter(Boolean)
-                : undefined;
+            currentFilters['year'] = isNaN(year) ? undefined : year;
+            currentFilters['original_language'] = val('f-lang') || undefined;
+            currentFilters['exclude_genres'] = csvArr('f-genres');
+            currentFilters['exclude_countries'] = csvArr('f-excl-countries');
             void refetchFiltered();
         });
     }
