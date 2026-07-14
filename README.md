@@ -2,15 +2,16 @@
 
 A remote MCP server for managing your arr stack via Claude.ai on mobile. Ask Claude to fix bad downloads, block release groups, request new content, browse trending anime, and check what's popular — all from your phone.
 
-## Tools (79)
+## Tools (84)
 
 | Service | Count | Highlights |
 |---|---|---|
-| **Sonarr** | 25 + 1 UI | find/add/remove/update series, episode history, delete file, blocklist, interactive search, **release browser UI**, grab release, queue management, tags, release profiles |
-| **Radarr** | 22 + 1 UI | find/add/remove/update movie, history, delete file, blocklist, interactive search, **release browser UI**, grab release, queue management, tags, release profiles |
+| **Sonarr** | 23 + 1 UI | find/add/remove/update series, episode history, delete file, blocklist, interactive search, **release browser UI**, grab release, queue management, tags, release profiles |
+| **Radarr** | 21 + 1 UI | find/add/remove/update movie, history, delete file, blocklist, interactive search, **release browser UI**, grab release, queue management, tags, release profiles |
 | **qBittorrent** | 4 | list torrents, delete torrent, add via magnet, sync VPN port |
-| **Seerr** | 16 + 4 UI | search, request movie/TV, approve/decline, trending, popular, upcoming, recommendations, **discovery card UI** (respects language/country/title blocklist) |
-| **AniList** | 5 + 4 UI | trending anime, popular, current season, search with recommendations, **anime browser UI** with cover art and one-click Seerr request |
+| **Seerr** | 17 | search, request movie/TV, approve/decline, recommendations, ratings |
+| **AniList** | 6 + 4 UI | trending anime, popular, current season, search with recommendations, **anime browser UI** with cover art and one-click Seerr request |
+| **TMDB** | 3 + 4 UI | rich discover filtering (year, genre, rating, language, sort) for movies/TV, **discovery card UI** (trending/popular/upcoming, respects language/country/title blocklist) |
 
 ### Interactive UI tools
 
@@ -20,10 +21,10 @@ These render directly in Claude.ai chat as card grids or tables:
 |---|---|
 | `sonarr_interactive_search_ui` | Release table with Grab button — no GUID copy-paste needed |
 | `radarr_interactive_search_ui` | Same for movies |
-| `seerr_trending_ui` | Trending movies & TV with TMDB posters and Request button |
-| `seerr_popular_movies_ui` | Popular movies |
-| `seerr_popular_tv_ui` | Popular TV shows |
-| `seerr_upcoming_ui` | Upcoming movies |
+| `tmdb_trending_ui` | Trending movies & TV with TMDB posters and Request button |
+| `tmdb_popular_movies_ui` | Popular movies, with year/genre/rating/language filter bar |
+| `tmdb_popular_tv_ui` | Popular TV shows, with year/genre/rating/language filter bar |
+| `tmdb_upcoming_ui` | Upcoming movies, with year/genre/rating/language filter bar |
 | `anilist_trending_ui` | Trending anime with cover art and one-click Seerr request |
 | `anilist_popular_ui` | All-time popular anime |
 | `anilist_seasonal_ui` | Current season anime |
@@ -41,7 +42,11 @@ These render directly in Claude.ai chat as card grids or tables:
 
 **Browse trending / request content**
 > "Show me what's trending"
-> → Seerr discovery UI loads with poster cards → click Request on anything you want
+> → TMDB discovery UI loads with poster cards → click Request on anything you want
+
+**Filtered discovery**
+> "Show me highly-rated Korean thrillers from the last 5 years"
+> → `tmdb_discover_tv` filters by genre, language, and year range → present top matches
 
 **Discover anime**
 > "What anime is airing this season?"
@@ -105,7 +110,7 @@ docker build -t arr-mcp .
 2. URL: `https://your-domain.com/mcp`
 3. Complete the OAuth login with your `MCP_AUTH_TOKEN`
 
-Once connected, Claude will list all 79 tools automatically. No configuration beyond env vars is needed.
+Once connected, Claude will list all 84 tools automatically. No configuration beyond env vars is needed.
 
 ## Configuration
 
@@ -118,6 +123,7 @@ See `docker-compose.example.yml` for a full annotated example. Required env vars
 | `SONARR_API_KEY` | From Sonarr → Settings → General |
 | `RADARR_API_KEY` | From Radarr → Settings → General |
 | `SEERR_API_KEY` | From Seerr → Settings → General |
+| `TMDB_API_KEY` | From themoviedb.org → Settings → API — powers `tmdb_discover_*` tools |
 | `QBT_URL` | qBittorrent WebUI URL (default: `http://qbittorrent:8080`) |
 
 ## CI / CD
