@@ -44,10 +44,13 @@ type DiscoverConfig = {
 };
 
 const TMDB_DISCOVER_CONFIGS: Record<string, DiscoverConfig> = {
-    trending:       {url: '/trending/all/week', inferMt: (r) => r['media_type'] === 'tv' ? 't' : 'm'},
-    popular_movies: {url: '/discover/movie',    inferMt: () => 'm', mediaType: 'movie', defaultSort: 'popularity.desc'},
-    popular_tv:     {url: '/discover/tv',       inferMt: () => 't', mediaType: 'tv',    defaultSort: 'popularity.desc'},
-    upcoming:       {url: '/discover/movie',    inferMt: () => 'm', mediaType: 'movie', defaultSort: 'primary_release_date.asc', defaultMinVotes: 0},
+    trending:         {url: '/trending/all/week', inferMt: (r) => r['media_type'] === 'tv' ? 't' : 'm'},
+    trending_day:     {url: '/trending/all/day',  inferMt: (r) => r['media_type'] === 'tv' ? 't' : 'm'},
+    popular_movies:   {url: '/discover/movie',    inferMt: () => 'm', mediaType: 'movie', defaultSort: 'popularity.desc'},
+    popular_tv:       {url: '/discover/tv',       inferMt: () => 't', mediaType: 'tv',    defaultSort: 'popularity.desc'},
+    upcoming:         {url: '/discover/movie',    inferMt: () => 'm', mediaType: 'movie', defaultSort: 'primary_release_date.asc', defaultMinVotes: 0},
+    top_rated_movies: {url: '/movie/top_rated',   inferMt: () => 'm'},
+    top_rated_tv:     {url: '/tv/top_rated',      inferMt: () => 't'},
 };
 
 const trimTmdbDiscoverPage = (
@@ -194,7 +197,7 @@ const trimTvResult = async (r: TmdbRawResult): Promise<Record<string, unknown>> 
 export const tmdbTools: ToolModule[] = [
     {
         name: 'tmdb_discover_page',
-        description: 'Fetch a page of TMDB discover results for the discovery UI — used for Load More pagination. type: trending, popular_movies, popular_tv, upcoming.',
+        description: 'Fetch a page of TMDB discover results for the discovery UI — used for Load More pagination. type: trending, trending_day, popular_movies, popular_tv, upcoming, top_rated_movies, top_rated_tv.',
         inputSchema: {
             type: 'object',
             properties: {

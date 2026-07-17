@@ -25,7 +25,7 @@ export const ALL_TOOLS: ToolModule[] = [
     ...tmdbTools,
 ];
 
-export const TOOL_COUNT = ALL_TOOLS.length + 10; // +2 release browsers, +4 seerr discover, +4 anilist
+export const TOOL_COUNT = ALL_TOOLS.length + 13; // +2 release browsers, +7 tmdb discover, +4 anilist
 
 function toZodShape(schema: ToolInputSchema): Record<string, z.ZodTypeAny> {
     const required = new Set(schema.required ?? []);
@@ -142,11 +142,16 @@ export const createMcpServer = (): McpServer => {
     );
 
     const discoverTitles: Record<string, string> = {
-        trending: 'Trending',
-        popular_movies: 'Popular Movies',
-        popular_tv: 'Popular TV',
-        upcoming: 'Upcoming Movies',
+        trending:         'Trending This Week',
+        trending_day:     'Trending Today',
+        popular_movies:   'Popular Movies',
+        popular_tv:       'Popular TV',
+        upcoming:         'Upcoming Movies',
+        top_rated_movies: 'Top Rated Movies',
+        top_rated_tv:     'Top Rated TV',
     };
+
+    const noFilterDiscoverTypes = new Set(['trending', 'trending_day', 'top_rated_movies', 'top_rated_tv']);
 
     const filterSchema = {
         genres:           z.array(z.string()).optional().describe('Genre names to include, e.g. ["Action"]'),
@@ -163,7 +168,7 @@ export const createMcpServer = (): McpServer => {
     };
 
     for (const [type, title] of Object.entries(discoverTitles)) {
-        const schema = type === 'trending'
+        const schema = noFilterDiscoverTypes.has(type)
             ? {page: z.number().optional().describe('Page number (default 1)')}
             : {page: z.number().optional().describe('Page number (default 1)'), ...filterSchema};
         registerAppTool(server, `tmdb_${type}_ui`, {

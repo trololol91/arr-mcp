@@ -182,7 +182,7 @@ function currentSortValue(): string {
 }
 
 function initGrid(): void {
-    const supportsFilters = currentType !== 'trending';
+    const supportsFilters = !['trending', 'trending_day', 'top_rated_movies', 'top_rated_tv'].includes(currentType);
     const sortBtns = SORT_OPTIONS.map((o) =>
         `<button class="sort-btn${currentSortValue() === o.value ? ' active' : ''}" data-sort="${o.value}">${o.label}</button>`
     ).join('');
