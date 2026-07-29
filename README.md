@@ -2,7 +2,7 @@
 
 A remote MCP server for managing your arr stack via Claude.ai on mobile. Ask Claude to fix bad downloads, block release groups, request new content, browse trending anime, and check what's popular — all from your phone.
 
-## Tools (84)
+## Tools (92)
 
 | Service | Count | Highlights |
 |---|---|---|
@@ -11,7 +11,7 @@ A remote MCP server for managing your arr stack via Claude.ai on mobile. Ask Cla
 | **qBittorrent** | 4 | list torrents, delete torrent, add via magnet, sync VPN port |
 | **Seerr** | 17 | search, request movie/TV, approve/decline, recommendations, ratings |
 | **AniList** | 6 + 4 UI | trending anime, popular, current season, search with recommendations, **anime browser UI** with cover art and one-click Seerr request |
-| **TMDB** | 3 + 4 UI | rich discover filtering (year, genre, rating, language, sort) for movies/TV, **discovery card UI** (trending/popular/upcoming, respects language/country/title blocklist) |
+| **TMDB** | 3 + 12 UI | rich discover filtering (year, genre AND/OR, rating range, language, runtime, certification, watch provider, sort) for movies/TV, **discovery card UI** (trending/popular/upcoming/airing/top rated, respects language/country/title blocklist) |
 
 ### Interactive UI tools
 
@@ -21,10 +21,18 @@ These render directly in Claude.ai chat as card grids or tables:
 |---|---|
 | `sonarr_interactive_search_ui` | Release table with Grab button — no GUID copy-paste needed |
 | `radarr_interactive_search_ui` | Same for movies |
-| `tmdb_trending_ui` | Trending movies & TV with TMDB posters and Request button |
-| `tmdb_popular_movies_ui` | Popular movies, with year/genre/rating/language filter bar |
-| `tmdb_popular_tv_ui` | Popular TV shows, with year/genre/rating/language filter bar |
-| `tmdb_upcoming_ui` | Upcoming movies, with year/genre/rating/language filter bar |
+| `tmdb_trending_ui` | Trending movies & TV this week |
+| `tmdb_trending_day_ui` | Trending movies & TV today |
+| `tmdb_trending_movies_ui` | Trending movies this week |
+| `tmdb_trending_movies_day_ui` | Trending movies today |
+| `tmdb_trending_tv_ui` | Trending TV this week |
+| `tmdb_trending_tv_day_ui` | Trending TV today |
+| `tmdb_popular_movies_ui` | Popular movies, with full filter bar (genre, rating range, year, language, watch provider) |
+| `tmdb_popular_tv_ui` | Popular TV shows, with full filter bar |
+| `tmdb_upcoming_ui` | Upcoming movies, with full filter bar |
+| `tmdb_airing_tv_ui` | Currently airing TV, with full filter bar |
+| `tmdb_top_rated_movies_ui` | All-time top rated movies |
+| `tmdb_top_rated_tv_ui` | All-time top rated TV |
 | `anilist_trending_ui` | Trending anime with cover art and one-click Seerr request |
 | `anilist_popular_ui` | All-time popular anime |
 | `anilist_seasonal_ui` | Current season anime |
@@ -45,8 +53,8 @@ These render directly in Claude.ai chat as card grids or tables:
 > → TMDB discovery UI loads with poster cards → click Request on anything you want
 
 **Filtered discovery**
-> "Show me highly-rated Korean thrillers from the last 5 years"
-> → `tmdb_discover_tv` filters by genre, language, and year range → present top matches
+> "Show me highly-rated Korean thrillers from the last 5 years, available on Netflix"
+> → `tmdb_discover_tv` filters by genre, language, rating, year range, and watch provider → present top matches
 
 **Discover anime**
 > "What anime is airing this season?"
@@ -110,7 +118,7 @@ docker build -t arr-mcp .
 2. URL: `https://your-domain.com/mcp`
 3. Complete the OAuth login with your `MCP_AUTH_TOKEN`
 
-Once connected, Claude will list all 84 tools automatically. No configuration beyond env vars is needed.
+Once connected, Claude will list all 92 tools automatically. No configuration beyond env vars is needed.
 
 ## Configuration
 

@@ -25,7 +25,7 @@ export const ALL_TOOLS: ToolModule[] = [
     ...tmdbTools,
 ];
 
-export const TOOL_COUNT = ALL_TOOLS.length + 13; // +2 release browsers, +7 tmdb discover, +4 anilist
+export const TOOL_COUNT = ALL_TOOLS.length + 18; // +2 release browsers, +12 tmdb discover, +4 anilist
 
 function toZodShape(schema: ToolInputSchema): Record<string, z.ZodTypeAny> {
     const required = new Set(schema.required ?? []);
@@ -142,29 +142,42 @@ export const createMcpServer = (): McpServer => {
     );
 
     const discoverTitles: Record<string, string> = {
-        trending:         'Trending This Week',
-        trending_day:     'Trending Today',
-        popular_movies:   'Popular Movies',
-        popular_tv:       'Popular TV',
-        upcoming:         'Upcoming Movies',
-        top_rated_movies: 'Top Rated Movies',
-        top_rated_tv:     'Top Rated TV',
+        trending:            'Trending This Week',
+        trending_day:        'Trending Today',
+        trending_movies:     'Trending Movies This Week',
+        trending_movies_day: 'Trending Movies Today',
+        trending_tv:         'Trending TV This Week',
+        trending_tv_day:     'Trending TV Today',
+        popular_movies:      'Popular Movies',
+        popular_tv:          'Popular TV',
+        upcoming:            'Upcoming Movies',
+        airing_tv:           'Currently Airing TV',
+        top_rated_movies:    'Top Rated Movies',
+        top_rated_tv:        'Top Rated TV',
     };
 
-    const noFilterDiscoverTypes = new Set(['trending', 'trending_day', 'top_rated_movies', 'top_rated_tv']);
+    const noFilterDiscoverTypes = new Set(['trending', 'trending_day', 'trending_movies', 'trending_movies_day', 'trending_tv', 'trending_tv_day', 'top_rated_movies', 'top_rated_tv']);
 
     const filterSchema = {
         genres:           z.array(z.string()).optional().describe('Genre names to include, e.g. ["Action"]'),
         exclude_genres:   z.array(z.string()).optional().describe('Genre names to exclude, e.g. ["Animation"]'),
+        genre_match:      z.string().optional().describe('"all" (default) requires every included genre to match; "any" matches if at least one does'),
         countries:        z.array(z.string()).optional().describe('ISO 3166-1 country codes to include, e.g. ["US"]'),
         exclude_countries:z.array(z.string()).optional().describe('ISO 3166-1 country codes to exclude, e.g. ["JP", "KR"]'),
         min_rating:       z.number().optional().describe('Minimum vote average (0–10)'),
+        max_rating:       z.number().optional().describe('Maximum vote average (0–10)'),
         min_votes:        z.number().optional().describe('Minimum vote count'),
         original_language:z.string().optional().describe('ISO 639-1 language code, e.g. en, ja'),
         sort_by:          z.string().optional().describe('Sort order, e.g. popularity.desc, vote_average.desc'),
         year:             z.number().optional().describe('Exact release year'),
         year_gte:         z.number().optional().describe('Release year ≥ this'),
         year_lte:         z.number().optional().describe('Release year ≤ this'),
+        runtime_gte:      z.number().optional().describe('Minimum runtime in minutes'),
+        runtime_lte:      z.number().optional().describe('Maximum runtime in minutes'),
+        certification:    z.string().optional().describe('Content rating, e.g. "PG-13", "R"'),
+        certification_country: z.string().optional().describe('Country whose certification system to use (default "US")'),
+        watch_providers:  z.array(z.string()).optional().describe('Streaming service names to filter by, e.g. ["Netflix", "Max"]'),
+        watch_region:     z.string().optional().describe('Country code for watch provider availability (default "US")'),
     };
 
     for (const [type, title] of Object.entries(discoverTitles)) {
@@ -221,7 +234,7 @@ export const createMcpServer = (): McpServer => {
     );
 
     registerAppResource(server, 'TMDB Discovery', 'ui://arr-mcp/tmdb-discover.html',
-        {description: 'Browse trending, popular, and upcoming content from TMDB'},
+        {description: 'Browse trending, popular, upcoming, airing, and top rated content from TMDB'},
         async () => ({
             contents: [{
                 uri: 'ui://arr-mcp/tmdb-discover.html',

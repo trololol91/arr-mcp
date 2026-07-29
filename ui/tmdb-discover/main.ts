@@ -182,7 +182,7 @@ function currentSortValue(): string {
 }
 
 function initGrid(): void {
-    const supportsFilters = !['trending', 'trending_day', 'top_rated_movies', 'top_rated_tv'].includes(currentType);
+    const supportsFilters = !['trending', 'trending_day', 'trending_movies', 'trending_movies_day', 'trending_tv', 'trending_tv_day', 'top_rated_movies', 'top_rated_tv'].includes(currentType);
     const sortBtns = SORT_OPTIONS.map((o) =>
         `<button class="sort-btn${currentSortValue() === o.value ? ' active' : ''}" data-sort="${o.value}">${o.label}</button>`
     ).join('');
@@ -190,21 +190,30 @@ function initGrid(): void {
     const filterBar = supportsFilters ? `
         <div id="filter-bar">
             <span class="filter-label">Sort:</span>${sortBtns}
-            <span class="filter-label" style="margin-left:4px">Rating ≥</span>
-            <input id="f-rating" class="filter-input" type="number" min="0" max="10" step="0.5"
-                value="${currentFilters['min_rating'] ?? ''}" placeholder="—">
+            <span class="filter-label" style="margin-left:4px">Rating</span>
+            <input id="f-rating-min" class="filter-input" type="number" min="0" max="10" step="0.5"
+                value="${currentFilters['min_rating'] ?? ''}" placeholder="min" style="width:40px">
+            <span class="filter-label">–</span>
+            <input id="f-rating-max" class="filter-input" type="number" min="0" max="10" step="0.5"
+                value="${currentFilters['max_rating'] ?? ''}" placeholder="max" style="width:40px">
             <span class="filter-label">Year</span>
             <input id="f-year" class="filter-input" type="number" min="1900" max="2099"
                 value="${currentFilters['year'] ?? ''}" placeholder="—" style="width:52px">
             <span class="filter-label">Lang</span>
             <input id="f-lang" class="filter-input" type="text"
                 value="${currentFilters['original_language'] ?? ''}" placeholder="en, ja…" style="width:44px">
+            <span class="filter-label">Genres</span>
+            <input id="f-genres-include" class="filter-input" type="text"
+                value="${strArr('genres')}" placeholder="Action…">
             <span class="filter-label">Excl. genres</span>
             <input id="f-genres" class="filter-input" type="text"
                 value="${strArr('exclude_genres')}" placeholder="Animation…">
             <span class="filter-label">Excl. countries</span>
             <input id="f-excl-countries" class="filter-input" type="text"
                 value="${strArr('exclude_countries')}" placeholder="JP, KR…" style="width:60px">
+            <span class="filter-label">Providers</span>
+            <input id="f-providers" class="filter-input" type="text"
+                value="${strArr('watch_providers')}" placeholder="Netflix, Max…">
             <button id="f-apply">Apply</button>
         </div>` : '';
 
@@ -224,13 +233,17 @@ function initGrid(): void {
         document.getElementById('f-apply')!.addEventListener('click', () => {
             const val = (id: string) => (document.getElementById(id) as HTMLInputElement).value.trim();
             const csvArr = (id: string) => val(id) ? val(id).split(',').map((s) => s.trim()).filter(Boolean) : undefined;
-            const rating = parseFloat(val('f-rating'));
+            const ratingMin = parseFloat(val('f-rating-min'));
+            const ratingMax = parseFloat(val('f-rating-max'));
             const year = parseInt(val('f-year'), 10);
-            currentFilters['min_rating'] = isNaN(rating) ? undefined : rating;
+            currentFilters['min_rating'] = isNaN(ratingMin) ? undefined : ratingMin;
+            currentFilters['max_rating'] = isNaN(ratingMax) ? undefined : ratingMax;
             currentFilters['year'] = isNaN(year) ? undefined : year;
             currentFilters['original_language'] = val('f-lang') || undefined;
+            currentFilters['genres'] = csvArr('f-genres-include');
             currentFilters['exclude_genres'] = csvArr('f-genres');
             currentFilters['exclude_countries'] = csvArr('f-excl-countries');
+            currentFilters['watch_providers'] = csvArr('f-providers');
             void refetchFiltered();
         });
     }
