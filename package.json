@@ -17,7 +17,7 @@
         "lint:check": "eslint \"src/**/*.ts\""
     },
     "dependencies": {
-        "@modelcontextprotocol/sdk": "1.29.0",
+        "@modelcontextprotocol/sdk": "1.32.2",
         "@modelcontextprotocol/ext-apps": "^1.7.4",
         "express": "^5.2.1",
         "zod": "^3.25.0"
